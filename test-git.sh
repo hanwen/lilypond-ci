@@ -11,16 +11,36 @@
 
 set -eu
 
-# Should use gvisor.
-runtime=""
-if [[ "$(which runsc)" != "" ]]; then
-    runtime="--runtime=runsc"
+url="$1"
+branch="$2"
+
+if [[ "${url}" == "rietveld" ]] ; then
+    if [[ ! -d lilypond ]]; then
+	git clone https://git.savannah.gnu.org/git/lilypond.git
+    fi
+
+    change="$2"
+    patchset=$(curl https://codereview.appspot.com/api/${change}/ | jq .patchsets[-1])
+    issue="issue${change}_${patchset}"
+    cd lilypond
+    git fetch origin
+    git reset --hard
+    git checkout origin/master
+    git branch -D ${issue}
+    git checkout -b ${issue} origin/master
+    curl "https://codereview.appspot.com/download/${issue}.diff" | git apply
+    git commit -m "${issue}" -a
+    cd ..
+    url=/rietveld
+    branch=${issue}
 fi
 
 name=$(echo $1 $2 | sed 's|.*://||g;s![/:]!-!g;s| |/|;')
 dest="${PWD}/test-results/${name}"
 mkdir -p "${dest}"
 
-time docker run "${runtime}" -v ${dest}:/output lilypond-seed /test.sh "$1" "$2"
+time docker run -v ${dest}:/output \
+     -v ${PWD}/lilypond:/rietveld \
+     lilypond-seed /test.sh "${url}" "${branch}"
 
 echo "results in ${dest}"
