@@ -5,7 +5,10 @@ ENV PATH /usr/lib64/ccache/:$PATH
 WORKDIR /
 RUN git clone https://git.savannah.gnu.org/git/lilypond.git
 WORKDIR /lilypond
-RUN ./autogen.sh && make -j4 && make test-baseline CPU_COUNT=4 && make distclean
+RUN ./autogen.sh && make -j4 \
+  && make test-baseline CPU_COUNT=4 \
+  && make distclean \
+  && ccache -z
 
 COPY test.sh /
 RUN chmod +x /test.sh
