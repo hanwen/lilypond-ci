@@ -14,7 +14,7 @@ docker build -t lilypond-base -f lilypond-base .
 2.  Create the lilypond seed image, holding the base regression tests
 
 ```
-docker build -t lilypond-seed -f lilypond-dev .
+docker build -t lilypond-seed -f lilypond-seed .
 ```
 
 This should be done every time the regression test changes significantly
