@@ -14,6 +14,16 @@ set -eu
 url="$1"
 branch="$2"
 
+if [[ -d "${url}" ]] ; then
+    url=$(realpath ${url})
+    cd lilypond
+    git checkout origin/master
+    git fetch -f ${url} ${branch}:${branch}
+    local_repo="local"
+    url=/local
+    cd ..
+fi
+
 if [[ "${url}" == "rietveld" ]] ; then
     if [[ ! -d lilypond ]]; then
 	git clone https://git.savannah.gnu.org/git/lilypond.git
@@ -31,6 +41,7 @@ if [[ "${url}" == "rietveld" ]] ; then
     curl "https://codereview.appspot.com/download/${issue}.diff" | git apply
     git commit -m "${issue}" -a
     cd ..
+    local_repo="rietveld"
     url=/rietveld
     branch=${issue}
 fi
@@ -40,7 +51,7 @@ dest="${PWD}/test-results/${name}"
 mkdir -p "${dest}"
 
 time docker run -v ${dest}:/output \
-     -v ${PWD}/lilypond:/rietveld \
+     -v ${PWD}/lilypond:/${local_repo} \
      lilypond-seed /test.sh "${url}" "${branch}"
 
 echo "results in ${dest}"
