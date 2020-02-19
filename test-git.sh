@@ -11,6 +11,19 @@
 
 set -eu
 
+base=lilypond-seed-ubuntu
+case "$1" in
+    --ubuntu)
+	base="lilypond-seed-ubuntu"
+	shift
+	;;
+    --fedora)
+	base="lilypond-seed-fedora"
+	shift
+	;;
+esac
+
+
 url="$1"
 branch="$2"
 
