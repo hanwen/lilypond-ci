@@ -7,7 +7,7 @@ Instructions
 1.  Create the base image, holding all the dev tools
 
 ```
-docker build -t lilypond-base -f lilypond-base .
+docker build -t lilypond-base -f ubuntu-base .  # or use 'fedora-base'
 ```
 
 
@@ -22,17 +22,14 @@ This should be done every time the regression test changes significantly
 3.  Start testing (git)
 
 ```
+# remote branch
 sh test-git.sh https://github.com/hanwen/lilypond guile22-experiment
-```
 
-This should leave results in
+# local branch
+sh test-git.sh $HOME/lilypond-src broken-branch
 
-```
-github.com-hanwen-lilypond/guile22-experiment/COMMIT/
-```
-
-4.  Start testing (Rietveld)
-
-```
+# rietveld review
 sh test-git.sh rietveld 557410043
 ```
+
+This should leave results in `test-results/URL/BRANCH/COMMIT`
