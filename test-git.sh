@@ -71,7 +71,7 @@ if [[ "${url}" == "rietveld" ]] ; then
 fi
 
 name=$(echo $1 $2 | sed 's|.*://||g;s![/:]!-!g;s| |/|;')
-dest="${PWD}/../lilypond-test-results/${name}"
+dest="${PWD}/../lilypond-test-results/${name}/${seed_image}"
 mkdir -p "${dest}"
 
 # TODO: should mount git repo read-only.
