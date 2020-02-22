@@ -1,6 +1,7 @@
 from lilypond-base
 
-ENV PATH /usr/lib64/ccache/:$PATH
+# need 2 ccache paths for both Ubuntu and Fedora
+ENV PATH /usr/lib/ccache:/usr/lib64/ccache/:$PATH
 
 # Since we're building an image, can't use bind mounts. Copy the repo instead.
 WORKDIR /

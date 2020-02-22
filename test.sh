@@ -7,7 +7,7 @@
 
 set -eu
 cd /lilypond
-export PATH="/usr/lib64/ccache/:$PATH"
+export PATH="/usr/lib64/ccache:/usr/lib/ccache/:$PATH"
 
 git fetch $1 $2
 git checkout FETCH_HEAD
@@ -31,5 +31,5 @@ echo ' *** CHANGED ***'
 echo ''
 cat out/test-results/changed.txt
 
-mkdir /output/${VERSION}
+mkdir -p /output/${VERSION}
 cp -a out/test-results/* /output/${VERSION}

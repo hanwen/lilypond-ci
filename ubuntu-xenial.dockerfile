@@ -72,4 +72,5 @@ RUN apt-get update \
     texlive-xetex \
     tidy \
     zip \
-&& rm -rf /var/lib/apt/lists/*
+&& rm -rf /var/lib/apt/lists/* \
+&& /usr/sbin/update-ccache-symlinks
