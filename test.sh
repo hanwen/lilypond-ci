@@ -1,11 +1,11 @@
 #!/bin/sh
 
 # checkout a revision and run the tests
-# usage
+# usage. Should run inside the container.
 #
 #  test.sh GIT-URL REMOTE-BRANCH
 
-set -eux
+set -eu
 cd /lilypond
 export PATH="/usr/lib64/ccache/:$PATH"
 
@@ -20,7 +20,6 @@ make -j4
 ccache -s
 
 make check CPU_COUNT=4
-
 
 echo ''
 echo ' *** RESULTS ***'

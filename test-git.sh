@@ -14,7 +14,6 @@ set -eu
 ccache_dir=${HOME}/.cache/lilypond-docker-ccache
 
 seed_image=lilypond-seed-fedora
-command="./autogen.sh && make -j4 && make check CPU_COUNT=4"
 
 while true; do
     case "$1" in
@@ -27,8 +26,7 @@ while true; do
 	    shift
 	    ;;
 	--guile2)
-	    seed_image="lilypond-seed-fedora"
-	    command='GUILE_CONFIG=guile-config2.2 GUILE=guile2.2 ./autogen.sh --enable-guile2 && make -j4 && make check CPU_COUNT=4'
+	    seed_image="lilypond-seed-fedora-guile2"
 	    shift
 	    ;;
 	*)
@@ -40,6 +38,7 @@ done
 url="$1"
 branch="$2"
 
+# Test from a branch in a local repo
 if [[ -d "${url}" ]] ; then
     url=$(realpath ${url})
     cd lilypond
@@ -50,18 +49,16 @@ if [[ -d "${url}" ]] ; then
     cd ..
 fi
 
+# Test a patch from rietveld
 if [[ "${url}" == "rietveld" ]] ; then
-    if [[ ! -d lilypond ]]; then
-	git clone https://git.savannah.gnu.org/git/lilypond.git
-    fi
-
     change="$2"
     patchset=$(curl https://codereview.appspot.com/api/${change}/ | jq .patchsets[-1])
     issue="issue${change}_${patchset}"
     cd lilypond
     git fetch origin
-    git reset --hard
-    git checkout origin/master
+
+    # rebase onto current master
+    git checkout -f origin/master
     ( git branch -D ${issue} || true)
     git checkout -b ${issue} origin/master
     curl "https://codereview.appspot.com/download/${issue}.diff" | git apply
@@ -77,11 +74,10 @@ name=$(echo $1 $2 | sed 's|.*://||g;s![/:]!-!g;s| |/|;')
 dest="${PWD}/../lilypond-test-results/${name}"
 mkdir -p "${dest}"
 
-mkdir -p $
+# TODO: should mount git repo read-only.
 time docker run -v ${dest}:/output \
      -v ${PWD}/lilypond:/${local_repo} \
-     -v $HOME/${PWD}/lilypond:/${local_repo} \
-     -v ${PWD}/test.sh:/test.sh
+     -v ${PWD}/test.sh:/test.sh \
      ${seed_image} /test.sh "${url}" "${branch}"
 
 
