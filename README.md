@@ -1,26 +1,27 @@
+Introduction
+============
 
-Scripts for testing LilyPond conveniently
+
+Scripts for testing LilyPond conveniently. It tests LilyPond in the
+following 3 configurations:
+
+* Ubuntu Xenial (16.04) with GUILE 1.8. This is represents an "old"
+  platform
+
+* Fedora Core 31 with GUILE 1.8. This represents the bleeding edge.
+
+* Fedora Core 31 with GUILE 2.2. This is to ensure that LilyPond keeps
+  working against newer GUILE versions
 
 Setup
 =====
 
-Run the `setup.sh` script. Or:
+1.  To get started, run `setup.sh` script.  This sets up base images
+    for compiling LilyPond.
 
-1.  Create the base image, holding all the dev tools
-
-```
-docker build -t lilypond-base -f ubuntu-base .  # or use 'fedora-base'
-```
-
-
-2.  Create the lilypond seed image, holding the base regression tests
-
-```
-docker build -t lilypond-seed -f lilypond-seed .
-```
-
-This should be done every time the regression test changes significantly
-
+2.  To create seed images, run `reseed.sh`.  This sets up the a
+    regtest baseline.  This should be repeated every time the regtest
+    changes significantly
 
 Usage
 =====
