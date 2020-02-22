@@ -1,8 +1,8 @@
 Introduction
 ============
 
-Scripts for testing LilyPond conveniently. It tests LilyPond in the
-following 3 configurations:
+These are scripts for testing LilyPond conveniently, using Docker. It
+tests LilyPond in the following 3 configurations:
 
 * Ubuntu Xenial (16.04) with GUILE 1.8. This is represents an "old"
   platform
@@ -43,4 +43,4 @@ sh test-git.sh --guile2 https://github.com/hanwen/lilypond guile22-experiment
 sh test-git.sh $HOME/lilypond-src broken-branch
 ```
 
-This should leave results in `test-results/URL/BRANCH/COMMIT/PLATFORM`
+This should leave results in `../lilypond/test-results/URL/BRANCH/COMMIT/PLATFORM`
