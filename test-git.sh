@@ -78,8 +78,8 @@ mkdir -p "${dest}"
 time docker run -v ${dest}:/output \
      -v ${PWD}/lilypond:/${local_repo} \
      -v ${PWD}/test.sh:/test.sh \
+     --rm=true \
      ${seed_image} /test.sh "${url}" "${branch}"
-
 
 if [[ "$local_repo" = "rietveld" ]]; then
     mv ${dest}/${version} ${dest}/PS${patchset}
