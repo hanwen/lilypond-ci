@@ -15,11 +15,11 @@ git checkout FETCH_HEAD
 VERSION=$(git rev-parse --short=8 HEAD)
 
 ./autogen.sh
-make -j4
+make -j$(nproc)
 
 ccache -s
 
-make check CPU_COUNT=4
+make check -j$(nproc) CPU_COUNT=$(nproc)
 
 echo ''
 echo ' *** RESULTS ***'
