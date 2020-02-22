@@ -1,7 +1,4 @@
-FROM ubuntu:19.10 as lilypond-base
-
-# Allow taking Guile 1.8 (and prerequisites) from Ubuntu 16.04.
-COPY ./xenial.list /etc/apt/sources.list.d/xenial.list
+FROM ubuntu:16.04
 
 ## DEBIAN_FRONTEND=noninteractive prevents apt-get from prompting
 ## after certain packages are added.
@@ -24,13 +21,13 @@ RUN apt-get update \
     make \
     libpangoft2-1.0-0 \
     python-all \
+    python3.5 \
     autoconf \
     autotools-dev \
     bison \
     ccache \
     dblatex \
     debhelper \
-    extractpdfmark \
     flex \
     fontforge \
     fonts-dejavu \
