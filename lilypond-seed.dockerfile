@@ -1,3 +1,7 @@
+# Populates ccache and test baseline.  This file is shared between
+# different platforms
+
+# Must set lilypond-base tag before executing this
 from lilypond-base
 
 # need 2 ccache paths for both Ubuntu and Fedora

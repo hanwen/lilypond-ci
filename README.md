@@ -1,7 +1,6 @@
 Introduction
 ============
 
-
 Scripts for testing LilyPond conveniently. It tests LilyPond in the
 following 3 configurations:
 
@@ -11,7 +10,9 @@ following 3 configurations:
 * Fedora Core 31 with GUILE 1.8. This represents the bleeding edge.
 
 * Fedora Core 31 with GUILE 2.2. This is to ensure that LilyPond keeps
-  working against newer GUILE versions
+  working against newer GUILE versions.  This requires change
+  "Accept GUILE 2 without extra configure options"
+
 
 Setup
 =====
@@ -29,14 +30,17 @@ Usage
 Start testing (git)
 
 ```
-# remote branch
-sh --fedora test-git.sh https://github.com/hanwen/lilypond guile22-experiment
-
-# local branch
-sh --ubuntu test-git.sh $HOME/lilypond-src broken-branch
-
 # rietveld review
 sh test-git.sh rietveld 557410043
+
+# test remote branch on Fedora/guile18
+sh test-git.sh --fedora https://github.com/hanwen/lilypond guile22-experiment
+
+# test remote branch on Fedora/guile22
+sh test-git.sh --guile2 https://github.com/hanwen/lilypond guile22-experiment
+
+# local branch
+sh test-git.sh $HOME/lilypond-src broken-branch
 ```
 
-This should leave results in `test-results/URL/BRANCH/COMMIT`
+This should leave results in `test-results/URL/BRANCH/COMMIT/PLATFORM`

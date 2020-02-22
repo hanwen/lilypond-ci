@@ -1,3 +1,6 @@
+# This Dockerfile is inspired by the LilyDev docker image,
+# https://github.com/fedelibre/LilyDev
+
 FROM ubuntu:16.04
 
 ## DEBIAN_FRONTEND=noninteractive prevents apt-get from prompting
