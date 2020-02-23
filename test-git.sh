@@ -35,16 +35,24 @@ while true; do
     esac
 done
 
+if [[ -z $(docker image list -q "${seed_image}" ) ]]; then
+    echo "cannot find docker image ${seed_image}."
+    echo "run 'reseed.sh' first"
+    exit 1
+fi
+
+
 url="$1"
 branch="$2"
+local_repo="local"
 
 # Test from a branch in a local repo
 if [[ -d "${url}" ]] ; then
     url=$(realpath ${url})
     cd lilypond
-    git checkout origin/master
+    # detached head so we can update any branch
+    git checkout -f $(git rev-parse origin/master)
     git fetch -f ${url} ${branch}:${branch}
-    local_repo="local"
     url=/local
     cd ..
 fi

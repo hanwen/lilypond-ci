@@ -6,6 +6,12 @@ else
     (cd lilypond; git fetch origin)
 fi
 
+if [[ -z $(docker image list -q lilypond-base-fedora ) ]]; then
+    echo "cannot find docker image lilypond-base-fedora"
+    echo "run 'setup.sh' first"
+    exit 1
+fi
+
 docker tag lilypond-base-fedora lilypond-base
 docker build -t lilypond-seed-fedora -f lilypond-seed.dockerfile .
 docker tag lilypond-base-ubuntu lilypond-base
