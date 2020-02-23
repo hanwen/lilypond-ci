@@ -5,7 +5,6 @@ RUN dnf update -y && dnf install --setopt=install_weak_deps=False -y \
  autoconf \
  automake \
  bison \
- cache \
  ccache \
  compat-guile18-devel \
  curl \
