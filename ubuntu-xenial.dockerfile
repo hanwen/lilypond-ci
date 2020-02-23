@@ -57,13 +57,11 @@ RUN apt-get update \
     lmodern \
     m4 \
     make \
-    mftrace \
     moreutils \
     netpbm \
     pkg-config \
-    quilt \
     rsync \
-    strace \
+    time \
     texi2html \
     texinfo \
     texlive-fonts-recommended \
