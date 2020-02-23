@@ -1,14 +1,40 @@
 from fedora:31 as lilypond-base
 
 RUN dnf update -y && dnf install --setopt=install_weak_deps=False -y \
-  ccache texlive-tex-gyre fontforge \
-  gcc-c++ t1utils bison flex ImageMagick gettext texlive-tetex \
-  texinfo compat-guile18-devel ghostscript \
-  pango-devel fontpackages-devel dblatex texinfo-tex texi2html \
-  perl-Pod-Parser rsync texlive-tex-gyre texlive-lh texlive-metapost \
-  ccache make tidy extractpdfmark autoconf git-core perl-Math-Complex \
-  automake curl \
-  && rm -rf /var/cache/dnf
+ ImageMagick \
+ autoconf \
+ automake \
+ bison \
+ cache \
+ ccache \
+ compat-guile18-devel \
+ curl \
+ dblatex \
+ extractpdfmark \
+ flex \
+ fontforge \
+ fontpackages-devel \
+ gcc-c++ \
+ gettext \
+ ghostscript \
+ git-core \
+ make \
+ pango-devel \
+ perl-Math-Complex \
+ perl-Pod-Parser \
+ rsync \
+ t1utils \
+ texi2html \
+ texinfo \
+ texinfo-tex \
+ texlive-lh \
+ texlive-metapost \
+ texlive-tetex \
+ texlive-tex-gyre \
+ texlive-tex-gyre \
+ tidy \
+ time \
+ && rm -rf /var/cache/dnf
 
 # lilypond requires a very specific texi2html version.
 RUN curl --silent http://lilypond.org/downloads/gub-sources/texi2html/texi2html-1.82.tar.gz | tar zx \
