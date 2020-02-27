@@ -3,15 +3,14 @@
 # checkout a base revision, create baseline, checkout rev to test, run
 # the tests, make doc.
 #
-#  test.sh GIT-URL REMOTE-BRANCH  LOCAL-GIT-URL LOCAL-BASELINE
+#  test.sh GIT-URL REMOTE-BRANCH  LOCAL-GIT-DIRECTORY LOCAL-BASELINE
 
 set -eu
 
 mkdir /lilypond
 cd /lilypond
-git init
-git fetch $3 $4:baseline
-git checkout baseline
+cp -a $3/.git .
+git checkout -f $4
 
 N=$(nproc)
 ./autogen.sh
