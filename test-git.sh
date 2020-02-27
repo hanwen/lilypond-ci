@@ -13,20 +13,28 @@ set -eu
 
 ccache_dir=${HOME}/.cache/lilypond-docker-ccache
 
-seed_image=lilypond-seed-fedora
-
+platform=fedora
+mode=incremental
 while true; do
     case "$1" in
 	--ubuntu)
-	    seed_image="lilypond-seed-ubuntu"
+	    platform=ubuntu
 	    shift
 	    ;;
 	--fedora)
-	    seed_image="lilypond-seed-fedora"
+	    platform=fedora
 	    shift
 	    ;;
 	--guile2)
-	    seed_image="lilypond-seed-fedora-guile2"
+	    platform=fedora-guile2
+	    shift
+	    ;;
+	--incr)
+	    mode=incremental
+	    shift
+	    ;;
+	--full)
+	    mode=full
 	    shift
 	    ;;
 	*)
@@ -35,12 +43,24 @@ while true; do
     esac
 done
 
-if [[ -z $(docker image list -q "${seed_image}" ) ]]; then
-    echo "cannot find docker image ${seed_image}."
-    echo "run 'reseed.sh' first"
-    exit 1
+driver_script=""
+if [[ "${mode}" = incremental ]] ; then
+    seed_image="lilypond-seed-${platform}"
+    driver_script="test-incremental.sh"
+else
+    seed_image="lilypond-base-${platform}"
+    driver_script="test-full.sh"
 fi
 
+if [[ -z $(docker image list -q "${seed_image}" ) ]]; then
+    echo "cannot find docker image ${seed_image}."
+    if [[ "${mode}" = "incremental" ]]; then
+	echo "run 'reseed.sh' first"
+    else
+	echo "run 'setup.sh' first"
+    fi
+    exit 1
+fi
 
 url="$1"
 branch="$2"
@@ -85,9 +105,9 @@ mkdir -p "${dest}"
 # TODO: should mount git repo read-only.
 time docker run -v ${dest}:/output \
      -v ${PWD}/lilypond:/${local_repo} \
-     -v ${PWD}/test.sh:/test.sh \
+     -v ${PWD}/${driver_script}:/test.sh \
      --rm=true \
-     ${seed_image} /test.sh "${url}" "${branch}"
+     ${seed_image} /test.sh "${url}" "${branch}" "/${local_repo}" "origin/master"
 
 if [[ "$local_repo" = "rietveld" ]]; then
     mv ${dest}/${version} ${dest}/PS${patchset}
