@@ -102,10 +102,9 @@ name=$(echo $1 $2 | sed 's|.*://||g;s![/:]!-!g;s| |/|;')
 dest="${PWD}/../lilypond-test-results/${name}/${seed_image}"
 mkdir -p "${dest}"
 
-# TODO: should mount git repo read-only.
 time docker run -v ${dest}:/output \
-     -v ${PWD}/lilypond:/${local_repo} \
-     -v ${PWD}/${driver_script}:/test.sh \
+     -v ${PWD}/lilypond:/${local_repo}:ro \
+     -v ${PWD}/${driver_script}:/test.sh:ro \
      --rm=true \
      ${seed_image} /test.sh "${url}" "${branch}" "/${local_repo}" "origin/master"
 
