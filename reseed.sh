@@ -12,9 +12,11 @@ if [[ -z $(docker image list -q lilypond-base-fedora ) ]]; then
     exit 1
 fi
 
-docker tag lilypond-base-fedora lilypond-base
-docker build -t lilypond-seed-fedora -f lilypond-seed.dockerfile .
-docker tag lilypond-base-ubuntu lilypond-base
-docker build -t lilypond-seed-ubuntu -f lilypond-seed.dockerfile .
-docker tag lilypond-base-fedora-guile2 lilypond-base
-docker build -t lilypond-seed-fedora-guile2 -f lilypond-seed.dockerfile .
+for platform in fedora ubuntu fedora-guile2 ; do
+    echo ""
+    echo "Building seed for ${platform}"
+    echo ""
+
+    docker tag lilypond-base-${platform} lilypond-base
+    docker build -t lilypond-seed-${platform} -f lilypond-seed.dockerfile .
+done

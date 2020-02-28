@@ -62,6 +62,10 @@ if [[ -z $(docker image list -q "${seed_image}" ) ]]; then
     exit 1
 fi
 
+echo ""
+echo "Testing on ${platform}, mode ${mode}"
+echo ""
+
 url="$1"
 branch="$2"
 local_repo="local"
