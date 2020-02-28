@@ -17,10 +17,11 @@ N=$(nproc)
 export PATH="/usr/lib64/ccache:/usr/lib/ccache/:$PATH"
 time make -j$(nproc)
 time make test-baseline -j$N CPU_COUNT=$N
-make dist-clean
+make distclean
 
 git fetch $1 $2:test
 git checkout test
+./autogen.sh
 time make -j$N
 time make doc -j$N CPU_COUNT=$N
 time make check -j$N CPU_COUNT=$N
