@@ -13,13 +13,13 @@ git fetch $1 $2
 git checkout FETCH_HEAD
 
 VERSION=$(git rev-parse --short=8 HEAD)
-
+N=$(nproc)
 ./autogen.sh
-time make -j$(nproc)
+time make -j$N
 
 ccache -s
 
-time make check -j$(nproc) CPU_COUNT=$(nproc)
+time make check -j$N CPU_COUNT=$N
 
 echo ''
 echo ' *** RESULTS ***'
