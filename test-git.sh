@@ -15,32 +15,38 @@ ccache_dir=${HOME}/.cache/lilypond-docker-ccache
 
 platform=fedora
 mode=incremental
+stage=check
 while true; do
     case "$1" in
 	--ubuntu)
 	    platform=ubuntu
-	    shift
 	    ;;
 	--fedora)
 	    platform=fedora
-	    shift
 	    ;;
 	--guile2)
 	    platform=fedora-guile2
-	    shift
+	    ;;
+	--build)
+	    stage=build
+	    ;;
+	--check)
+	    stage=check
+	    ;;
+	--doc)
+	    stage=doc
 	    ;;
 	--incr)
 	    mode=incremental
-	    shift
 	    ;;
 	--full)
 	    mode=full
-	    shift
 	    ;;
 	*)
 	    break 2
 	    ;;
     esac
+    shift
 done
 
 driver_script=""
@@ -110,7 +116,7 @@ time docker run -v ${dest}:/output \
      -v ${PWD}/lilypond:/${local_repo}:ro \
      -v ${PWD}/${driver_script}:/test.sh:ro \
      --rm=true \
-     ${seed_image} /test.sh "${url}" "${branch}" "/${local_repo}" "origin/master"
+     ${seed_image} /test.sh "${stage}" "${url}" "${branch}" "/${local_repo}" "origin/master"
 
 if [[ "$local_repo" = "rietveld" ]]; then
     mv ${dest}/${version} ${dest}/PS${patchset}
