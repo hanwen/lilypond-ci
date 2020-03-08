@@ -27,6 +27,7 @@ while true; do
 	--guile2)
 	    platform=fedora-guile2
 	    ;;
+
 	--build)
 	    stage=build
 	    ;;
@@ -39,6 +40,9 @@ while true; do
 	--incr)
 	    mode=incremental
 	    ;;
+	--separate)
+	    mode=separate
+	    ;;
 	--full)
 	    mode=full
 	    ;;
@@ -49,13 +53,11 @@ while true; do
     shift
 done
 
-driver_script=""
+driver_script="test-${mode}.sh"
 if [[ "${mode}" = incremental ]] ; then
     seed_image="lilypond-seed-${platform}"
-    driver_script="test-incremental.sh"
 else
     seed_image="lilypond-base-${platform}"
-    driver_script="test-full.sh"
 fi
 
 if [[ -z $(docker image list -q "${seed_image}" ) ]]; then
