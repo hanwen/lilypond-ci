@@ -52,7 +52,7 @@ def parse():
         elif k == "--stage":
             if v not in all_stages:
                 error ("unknown stage %s, want %s" % (v, all_stages))
-                result.stage = v
+            result.stage = v
 
     return (result, args)
 
@@ -120,7 +120,7 @@ def test_one(options, platform, args):
 def main():
     (opts, args) = parse()
     if not opts.platforms:
-        opts.platforms.add("guile2")
+        opts.platforms.add("fedora-guile2")
 
     if not opts.stage:
         opts.stage = "check"
