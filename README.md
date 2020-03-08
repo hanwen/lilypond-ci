@@ -31,16 +31,16 @@ Start testing (git)
 
 ```
 # rietveld review
-sh test-git.sh rietveld 557410043
+test-lily.py rietveld 557410043
 
 # test remote branch on Fedora/guile18
-sh test-git.sh --fedora https://github.com/hanwen/lilypond guile22-experiment
+test-lily.py --platform=fedora https://github.com/hanwen/lilypond guile22-experiment
 
 # test remote branch on Fedora/guile22
-sh test-git.sh --guile2 https://github.com/hanwen/lilypond guile22-experiment
+test-lily.py --platform=guile2 https://github.com/hanwen/lilypond guile22-experiment
 
 # local branch
-sh test-git.sh $HOME/lilypond-src broken-branch
+test-lily.py $HOME/lilypond-src broken-branch
 ```
 
 This should leave results in `../lilypond/test-results/URL/BRANCH/COMMIT/PLATFORM`
