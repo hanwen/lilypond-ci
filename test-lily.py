@@ -80,7 +80,7 @@ def test_one(options, platform, args):
         system("""set -eu
         cd lilypond
         git checkout -f $(git rev-parse origin/master)
-        git fetch %(url)s %(branch)s:%(branch)s
+        git fetch -f %(url)s %(branch)s:%(branch)s
         """ % locals())
 
     if url == "rietveld":
