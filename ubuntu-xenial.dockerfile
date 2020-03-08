@@ -2,6 +2,7 @@
 # https://github.com/fedelibre/LilyDev
 
 FROM ubuntu:16.04
+COPY init-tex.sh .
 
 ## DEBIAN_FRONTEND=noninteractive prevents apt-get from prompting
 ## after certain packages are added.
@@ -74,4 +75,5 @@ RUN apt-get update \
     tidy \
     zip \
 && rm -rf /var/lib/apt/lists/* /usr/share/doc \
-&& /usr/sbin/update-ccache-symlinks
+&& /usr/sbin/update-ccache-symlinks \
+&& ./init-tex.sh
