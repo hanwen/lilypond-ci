@@ -45,7 +45,7 @@ def parse():
             if v == "guile2":
                 v = "fedora-guile2"
             if v == "all":
-                result.platforms += all_platforms
+                result.platforms.update(all_platforms)
             elif v not in all_platforms:
                 error ("unknown platform %s, want %s" %(v, all_platforms))
                 result.platforms.add(v)
