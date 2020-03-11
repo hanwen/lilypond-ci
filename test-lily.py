@@ -124,6 +124,8 @@ def main():
 
     if not opts.stage:
         opts.stage = "check"
+    if not opts.mode:
+        opts.mode = "incremental"
 
     for p in opts.platforms:
         test_one(opts, p, args)
