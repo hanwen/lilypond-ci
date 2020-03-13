@@ -23,10 +23,24 @@ def system(cmd):
     stat =  os.system(cmd)
     assert stat == 0, stat
 
+def usage():
+    sys.stdout.write("""
+test-lily [options] URL BRANCH
+test-lily [options] rietveld CHANGE-NUM
+
+options:
+    --help this help.
+    --mode={incremental,full,separate}
+    --stage={build,check,doc}
+    --platform={ubuntu,fedora,guile2}
+""")
+
+
 def parse():
     opts, args = getopt.getopt(sys.argv[1:],
                                "",
-                               ["mode=", "platform=", "stage="])
+                               ["help",
+                                "mode=", "platform=", "stage="])
 
     result = Options()
     all_platforms = set(["fedora-guile2", "fedora", "ubuntu"])
@@ -53,6 +67,9 @@ def parse():
             if v not in all_stages:
                 error ("unknown stage %s, want %s" % (v, all_stages))
             result.stage = v
+        elif k == "--help":
+            usage()
+            sys.exit(0)
 
     return (result, args)
 
