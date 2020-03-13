@@ -24,15 +24,20 @@ export PATH="/usr/lib64/ccache:/usr/lib/ccache/:$PATH"
 
 case "${stage}" in
     doc|check)
-	time make -j$(nproc)
+	time make -j$N
 	time make test-baseline -j$N CPU_COUNT=$N
 	make distclean
 	;;
 esac
 
+cd /lilypond
 git fetch $1 $2:test
 git checkout test
-./autogen.sh
+VERSION=$(git rev-parse --short=8 HEAD)
+
+cd /lpbuild
+/lilypond/autogen.sh
+
 time make -j$N
 if [[ "${stage}" = build ]] ; then
     exit 0
