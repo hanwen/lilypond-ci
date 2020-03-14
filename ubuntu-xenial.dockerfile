@@ -59,10 +59,10 @@ RUN apt-get update \
     m4 \
     make \
     moreutils \
+    nano \
     netpbm \
     pkg-config \
     rsync \
-    time \
     texi2html \
     texinfo \
     texlive-fonts-recommended \
@@ -72,7 +72,7 @@ RUN apt-get update \
     texlive-latex-recommended \
     texlive-metapost \
     texlive-xetex \
-    tidy \
+    time \
     zip \
 && rm -rf /var/lib/apt/lists/* /usr/share/doc \
 && /usr/sbin/update-ccache-symlinks \
