@@ -21,7 +21,7 @@ export PATH="/usr/lib64/ccache:/usr/lib/ccache/:$PATH"
 
 case "${stage}" in
     doc|check)
-	time make -j$(nproc)
+	time make -j$N
 	time make test-baseline -j$N CPU_COUNT=$N
 	make distclean
 	;;
@@ -31,13 +31,15 @@ git fetch $1 $2:test
 git checkout test
 ./autogen.sh
 time make -j$N
-if [[ "${stage}" = build ]] ; then
-    exit 0
-fi
 
-if [[ "${stage}" = doc ]] ; then
+case "${stage}" in
+build)
+    exit 0
+    ;;
+doc)
     time make doc -j$N CPU_COUNT=$N
-fi
+    ;;
+esac
 
 time make check -j$N CPU_COUNT=$N
 

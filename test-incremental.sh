@@ -21,10 +21,9 @@ N=$(nproc)
 time make -j$N
 ccache -s
 
-if [[ "${stage}" = build ]] ; then
+if test "${stage}" = build ; then
     exit 0
 fi
-
 
 time make check -j$N CPU_COUNT=$N
 
@@ -41,7 +40,7 @@ cat out/test-results/changed.txt
 mkdir -p /output/${VERSION}
 cp -a out/test-results/* /output/${VERSION}
 
-if [[ "${stage}" != doc ]] ; then
+if test "${stage}" != doc ; then
     exit 0
 fi
 
