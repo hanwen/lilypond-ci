@@ -10,19 +10,19 @@ tests LilyPond in the following 3 configurations:
 * Fedora Core 31 with GUILE 1.8. This represents the bleeding edge.
 
 * Fedora Core 31 with GUILE 2.2. This is to ensure that LilyPond keeps
-  working against newer GUILE versions.  This requires change
-  "Accept GUILE 2 without extra configure options"
+  working against newer GUILE versions.
 
 
 Setup
 =====
 
-1.  To get started, run `setup.sh` script.  This sets up base images
-    for compiling LilyPond.
+```
+go run test.go --base --platform=ubuntu
+go run test.go --seed --platform=ubuntu
+```
 
-2.  To create seed images, run `reseed.sh`.  This sets up the a
-    regtest baseline.  This should be repeated every time the regtest
-    changes significantly
+Other supported platforms are "fedora" (Fedora 31) and "guile2"
+(Fedora 31 with Guile 2.2).
 
 Usage
 =====
@@ -31,16 +31,18 @@ Start testing (git)
 
 ```
 # rietveld review
-test-lily.py rietveld 557410043
+go run test.go --test rietveld 557410043
 
 # test remote branch on Fedora/guile18
-test-lily.py --platform=fedora https://github.com/hanwen/lilypond guile22-experiment
+go run test.go --test --platform=fedora \
+  https://github.com/hanwen/lilypond guile22-experiment
 
 # test remote branch on Fedora/guile22
-test-lily.py --platform=guile2 https://github.com/hanwen/lilypond guile22-experiment
+go run test.go --platform=guile2 \
+  https://github.com/hanwen/lilypond guile22-experiment
 
 # local branch
-test-lily.py $HOME/lilypond-src broken-branch
+go run test.go $HOME/lilypond-src broken-branch
 ```
 
-This should leave results in `../lilypond/test-results/URL/BRANCH/COMMIT/PLATFORM`
+This will leave results in `../lilypond/test-results/URL/BRANCH/COMMIT/PLATFORM`
