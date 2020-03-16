@@ -74,15 +74,18 @@ func patchRietveldChange(changeNum int) (branch string, err error) {
 	patchset := rv.Patchsets[len(rv.Patchsets)-1]
 	issue := fmt.Sprintf("issue%d_%d", changeNum, patchset)
 	if err := system(fmt.Sprintf(`ISSUE=%s
-cd lilypond
-git fetch origin
-git checkout -f origin/master
-(git branch -D $ISSUE || true)
-git checkout -b $ISSUE origin/master
-curl https://codereview.appspot.com/download/${ISSUE}.diff | git apply
+		cd lilypond
+		git fetch origin
+		git checkout -f origin/master
+		(git branch -D $ISSUE || true)
+		git checkout -b $ISSUE origin/master`, issue)); err != nil {
+		return "", err
+	}
+	if err := system(fmt.Sprintf(`ISSUE=%s
+cd lilypond && curl https://codereview.appspot.com/download/${ISSUE}.diff | git apply
 git add .
-git commit -m "${ISSUE}" -a
-`, issue)); err != nil {
+git commit -m "${ISSUE}" -a`, issue)); err != nil {
+		system("cd lilypond; git am --abort")
 		return "", err
 	}
 	return issue, nil
