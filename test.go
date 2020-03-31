@@ -203,6 +203,7 @@ func main() {
 		// todo - check if base image exists.
 		for _, p := range platforms {
 			if err := system(fmt.Sprintf(`
+		(cd lilypond && git fetch)
 		docker tag lilypond-base-%s lilypond-base
 		docker build -t lilypond-seed-%s -f lilypond-seed.dockerfile .
 `, p, p)); err != nil {
