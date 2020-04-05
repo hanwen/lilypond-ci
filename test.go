@@ -178,7 +178,7 @@ git fetch -f %s %s:%s`, url, branch, branch)); err != nil {
 }
 
 func main() {
-	platform := flag.String("platform", "ubuntu", "platform to test on"+strings.Join(allPlatforms, " "))
+	platform := flag.String("platform", "ubuntu", "platform to test on: "+strings.Join(allPlatforms, " "))
 	mode := flag.String("mode", "incremental", "how to build: "+strings.Join(allModes, " "))
 	stage := flag.String("stage", "check", "which stage to execute: "+strings.Join(allStages, " "))
 	doTest := flag.Bool("test", true, "test a change")
@@ -190,6 +190,10 @@ func main() {
 
 	var platforms []string
 	for _, p := range strings.Split(*platform, ",") {
+		if p == "all" {
+			platforms = allPlatforms
+			break
+		}
 		if p == "guile2" {
 			p = "fedora-guile2"
 		}
