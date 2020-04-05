@@ -21,6 +21,8 @@ N=$(nproc)
 time make -j$N
 ccache -s
 
+make VERBOSE=1 DESTDIR=/tmp/lp install
+
 if test "${stage}" = build ; then
     exit 0
 fi

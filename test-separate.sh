@@ -39,6 +39,7 @@ cd /lpbuild
 /lilypond/autogen.sh
 
 time make -j$N
+time make DESTDIR=/tmp/lp install
 
 case "${stage}" in
 build)
