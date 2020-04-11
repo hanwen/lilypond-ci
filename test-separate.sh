@@ -33,7 +33,6 @@ esac
 cd /lilypond
 git fetch $1 $2:test
 git checkout test
-VERSION=$(git rev-parse --short=8 HEAD)
 
 cd /lpbuild
 /lilypond/autogen.sh
@@ -57,5 +56,4 @@ echo ' *** RESULTS ***'
 echo ''
 cat out/test-results/index.txt
 
-mkdir -p /output/${VERSION}
-cp -a out/test-results/* /output/${VERSION}
+cp -a out/test-results/* /output/

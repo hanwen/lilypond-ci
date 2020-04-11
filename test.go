@@ -116,13 +116,25 @@ git fetch -f %s %s:%s`, url, branch, branch)); err != nil {
 		}
 	}
 
+	cmd := exec.Command("git", "--git-dir", "lilypond/.git/", "rev-parse", "--short=8", branch)
+	shortHashBytes, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	shortHash := strings.TrimSpace(string(shortHashBytes))
+
 	name := regexp.MustCompile("^.*:").ReplaceAllString(url+"_"+branch, "")
 	name = regexp.MustCompile("[:/ ]").ReplaceAllString(name, "-")
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
-	dest = filepath.Join(cwd, "../lilypond-test-results", name, seedImage)
+	dest = filepath.Join(cwd, "../lilypond-test-results", name, seedImage, shortHash)
+	if fi, err := os.Lstat(dest); err == nil && fi.IsDir() {
+		log.Printf("already ran tests on %s", shortHash)
+		return dest, nil
+	}
+
 	if err := os.MkdirAll(dest, 0777); err != nil {
 		return "", err
 	}
@@ -130,7 +142,8 @@ git fetch -f %s %s:%s`, url, branch, branch)); err != nil {
 	if timeout == 0 {
 		timeout = 24 * 60 * 60 * time.Second
 	}
-	cmd := exec.Command("docker",
+
+	cmd = exec.Command("docker",
 		"run", "-v", dest+":/output", "-v", filepath.Join(cwd, "lilypond")+":/"+localRepo+":ro",
 		"-v", filepath.Join(cwd, driverScript)+":/test.sh:ro", "--rm=true",
 		seedImage, "timeout", "--signal=KILL", fmt.Sprintf("%f", timeout.Seconds()), "/test.sh", stage, containerURL, branch, localRepo, "origin/master")
@@ -172,6 +185,10 @@ git fetch -f %s %s:%s`, url, branch, branch)); err != nil {
 		return "", err
 	}
 
+	os.Remove(filepath.Join(filepath.Dir(dest), "latest"))
+	if err := os.Symlink(shortHash, filepath.Join(filepath.Dir(dest), "latest")); err != nil {
+		log.Printf("Symlink: %v", err)
+	}
 	log.Printf("results in %s", dest)
 
 	return dest, nil
@@ -241,11 +258,17 @@ func main() {
 			}
 			repoURL = "lilypond"
 		}
+
+		var success []string
 		for _, p := range platforms {
 			_, err := testOne(p, *mode, *stage, repoURL, branch, *timeout)
 			if err != nil {
+				if len(success) > 0 {
+					log.Printf("testOne succeeded on: %s", success)
+				}
 				log.Fatalf("testOne (%s): %v", p, err)
 			}
+			success = append(success, p)
 		}
 	} else {
 		log.Fatal("must specify --test, --rebase or --reseed")

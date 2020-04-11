@@ -48,5 +48,4 @@ echo ' *** RESULTS ***'
 echo ''
 cat out/test-results/index.txt
 
-mkdir -p /output/${VERSION}
-cp -a out/test-results/* /output/${VERSION}
+cp -a out/test-results/* /output/

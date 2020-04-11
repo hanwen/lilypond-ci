@@ -15,7 +15,6 @@ export PATH="/usr/lib64/ccache:/usr/lib/ccache/:$PATH"
 git fetch $1 $2
 git checkout FETCH_HEAD
 
-VERSION=$(git rev-parse --short=8 HEAD)
 N=$(nproc)
 ./autogen.sh
 time make -j$N
@@ -27,7 +26,7 @@ if test "${stage}" = build ; then
     exit 0
 fi
 
-time make check -j$N CPU_COUNT=$N
+time make check -j$N CPU_COUNT=$N || sleep 20m
 
 echo ''
 echo ' *** RESULTS ***'
@@ -39,8 +38,7 @@ echo ' *** CHANGED ***'
 echo ''
 cat out/test-results/changed.txt
 
-mkdir -p /output/${VERSION}
-cp -a out/test-results/* /output/${VERSION}
+cp -a out/test-results/* /output/
 
 if test "${stage}" != doc ; then
     exit 0
