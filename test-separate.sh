@@ -25,7 +25,8 @@ export PATH="/usr/lib64/ccache:/usr/lib/ccache/:$PATH"
 case "${stage}" in
     doc|check)
 	time make -j$N
-	time make test-baseline -j$N CPU_COUNT=$N
+	time make test-baseline -j$N CPU_COUNT=$N USE_EXTRACTPDFMARK=no
+    ;;
 	make distclean
 	;;
 esac
@@ -45,11 +46,11 @@ build)
     exit 0
     ;;
 doc)
-    time make doc -j$N CPU_COUNT=$N
+    time make doc -j$N CPU_COUNT=$N USE_EXTRACTPDFMARK=no
     ;;
 esac
 
-time make check -j$N CPU_COUNT=$N
+time make check -j$N CPU_COUNT=$N USE_EXTRACTPDFMARK=no
 
 echo ''
 echo ' *** RESULTS ***'

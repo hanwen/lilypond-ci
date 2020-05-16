@@ -26,7 +26,7 @@ if test "${stage}" = build ; then
     exit 0
 fi
 
-time make check -j$N CPU_COUNT=$N || sleep 20m
+time make check -j$N CPU_COUNT=$N USE_EXTRACTPDFMARK=no
 
 echo ''
 echo ' *** RESULTS ***'

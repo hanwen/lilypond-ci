@@ -37,11 +37,11 @@ build)
     exit 0
     ;;
 doc)
-    time make doc -j$N CPU_COUNT=$N
+    time make doc -j$N CPU_COUNT=$N USE_EXTRACTPDFMARK=no
     ;;
 esac
 
-time make check -j$N CPU_COUNT=$N
+time make check -j$N CPU_COUNT=$N USE_EXTRACTPDFMARK=no
 
 echo ''
 echo ' *** RESULTS ***'
