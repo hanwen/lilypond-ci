@@ -14,6 +14,7 @@ RUN dnf update -y && dnf install --setopt=install_weak_deps=False -y \
  dejavu-'*' \
  extractpdfmark \
  flex \
+ gdb \
  fontforge \
  fontpackages-devel \
  gcc-c++ \
