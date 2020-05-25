@@ -129,9 +129,9 @@ git fetch -f %s %s:%s`, url, branch, branch)); err != nil {
 	if err != nil {
 		return "", err
 	}
-	dest = filepath.Join(cwd, "../lilypond-test-results", name, seedImage, shortHash)
+	dest = filepath.Join(cwd, "../lilypond-test-results", name, stage, seedImage, shortHash)
 	if fi, err := os.Lstat(dest); err == nil && fi.IsDir() {
-		log.Printf("already ran tests on %s", shortHash)
+		log.Printf("already ran tests on %s, or remove %s", shortHash, dest)
 		return dest, nil
 	}
 
@@ -228,13 +228,13 @@ func main() {
 		docker tag lilypond-base-%s lilypond-base
 		docker build -t lilypond-seed-%s -f lilypond-seed.dockerfile .
 `, p, p)); err != nil {
-				log.Fatalf("system: %v", err)
+				log.Fatalf("system (reseed %s): %v", p, err)
 			}
 		}
 	} else if *doRebase {
 		for _, p := range platforms {
 			if err := system(fmt.Sprintf("docker build --no-cache -t lilypond-base-%s -f %s .", p, dockerFiles[p])); err != nil {
-				log.Fatalf("system: %v", err)
+				log.Fatalf("system (rebase %s): %v", p, err)
 			}
 		}
 	} else if *doTest {
