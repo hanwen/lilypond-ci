@@ -20,7 +20,7 @@ N=$(nproc)
 mkdir /lpbuild
 cd /lpbuild
 export PATH="/usr/lib64/ccache:/usr/lib/ccache/:$PATH"
-/lilypond/autogen.sh
+/lilypond/autogen.sh  --enable-gs-api
 
 case "${stage}" in
     doc|check)
@@ -36,7 +36,7 @@ git fetch $1 $2:test
 git checkout test
 
 cd /lpbuild
-/lilypond/autogen.sh
+/lilypond/autogen.sh  --enable-gs-api
 
 time make -j$N
 time make DESTDIR=/tmp/lp install

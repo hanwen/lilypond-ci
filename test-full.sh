@@ -16,7 +16,7 @@ cp -a $3/.git .
 git checkout -f $4
 
 N=$(nproc)
-./autogen.sh
+./autogen.sh  --enable-gs-api
 export PATH="/usr/lib64/ccache:/usr/lib/ccache/:$PATH"
 
 case "${stage}" in

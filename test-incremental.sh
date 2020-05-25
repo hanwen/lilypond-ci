@@ -16,7 +16,7 @@ git fetch $1 $2
 git checkout FETCH_HEAD
 
 N=$(nproc)
-./autogen.sh
+./autogen.sh --enable-gs-api
 time make -j$N
 ccache -s
 

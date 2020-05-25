@@ -20,6 +20,7 @@ RUN dnf update -y && dnf install --setopt=install_weak_deps=False -y \
  gcc-c++ \
  gettext \
  ghostscript \
+ libgs-devel \
  git-core \
  make \
  pango-devel \
