@@ -91,7 +91,7 @@ git commit -m "${ISSUE}" -a`, issue)); err != nil {
 	return issue, nil
 }
 
-func testOne(platform, mode, stage, url, branch string, timeout time.Duration) (dest string, err error) {
+func testOne(platform, mode, stage, url, branch string, timeout time.Duration) (string, error) {
 	driverScript := fmt.Sprintf("test-%s.sh", mode)
 	seedImage := "lilypond-base-" + platform
 	if mode == "incremental" {
@@ -129,10 +129,15 @@ git fetch -f %s %s:%s`, url, branch, branch)); err != nil {
 	if err != nil {
 		return "", err
 	}
-	dest = filepath.Join(cwd, "../lilypond-test-results", name, stage, seedImage, shortHash)
+	finalDest := filepath.Join(cwd, "../lilypond-test-results", name, stage, seedImage, shortHash)
+	if fi, err := os.Lstat(finalDest); err == nil && fi.IsDir() {
+		log.Printf("already ran tests on %s, or remove %s", shortHash, finalDest)
+		return finalDest, nil
+	}
+
+	dest := finalDest + ".tmp"
 	if fi, err := os.Lstat(dest); err == nil && fi.IsDir() {
-		log.Printf("already ran tests on %s, or remove %s", shortHash, dest)
-		return dest, nil
+		os.RemoveAll(dest)
 	}
 
 	if err := os.MkdirAll(dest, 0777); err != nil {
@@ -184,14 +189,17 @@ git fetch -f %s %s:%s`, url, branch, branch)); err != nil {
 	if err := cmd.Run(); err != nil {
 		return "", err
 	}
+	if err := os.Rename(dest, finalDest); err != nil {
+		return "", err
+	}
 
-	os.Remove(filepath.Join(filepath.Dir(dest), "latest"))
-	if err := os.Symlink(shortHash, filepath.Join(filepath.Dir(dest), "latest")); err != nil {
+	os.Remove(filepath.Join(filepath.Dir(finalDest), "latest"))
+	if err := os.Symlink(shortHash, filepath.Join(filepath.Dir(finalDest), "latest")); err != nil {
 		log.Printf("Symlink: %v", err)
 	}
-	log.Printf("results in %s", dest)
+	log.Printf("results in %s", finalDest)
 
-	return dest, nil
+	return finalDest, nil
 }
 
 func main() {
