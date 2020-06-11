@@ -214,9 +214,8 @@ func analyzeData(base []float64, data []float64, name string, version string) st
 		}
 	}
 
-	return fmt.Sprintf(`  %s delta: %f (stddev %f %f n=%d)
-  %s delta: %f %% (%s is %s)
-`, name, delta, baseStddev, dataStddev, len(base), name, 100.0*delta/baseMed, version, qual)
+	return fmt.Sprintf(`    %s delta: %f (stddev %f %f n=%d)
+    %s delta: %f %% (%s is %s)`, name, delta, baseStddev, dataStddev, len(base), name, 100.0*delta/baseMed, version, qual)
 }
 
 func analyze(base, vers string, res allResults) string {
@@ -230,8 +229,8 @@ raw data (%s):
 		vers, res.versMem, res.versTime)
 
 	r += fmt.Sprintf(`%s - %s
-  baseline %s - %s
-  args %s
+    baseline %s - %s
+    args %s
 %s
 %s
 `, vers, describe(vers), base, describe(base), res.args,
