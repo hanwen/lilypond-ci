@@ -15,6 +15,8 @@ cd /lilypond
 cp -a $3/.git .
 git checkout -f $4
 
+trap 'cp $(find /lilypond/ -name "*.fail.log") /output/' EXIT
+
 N=$(nproc)
 ./autogen.sh  --enable-gs-api
 export PATH="/usr/lib64/ccache:/usr/lib/ccache/:$PATH"

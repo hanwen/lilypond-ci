@@ -15,6 +15,8 @@ export PATH="/usr/lib64/ccache:/usr/lib/ccache/:$PATH"
 git fetch $1 $2
 git checkout FETCH_HEAD
 
+trap 'cp $(find /lilypond/ -name "*.fail.log") /output/' EXIT
+
 N=$(nproc)
 ./autogen.sh --enable-gs-api
 time make -j$N

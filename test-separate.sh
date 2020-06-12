@@ -19,6 +19,9 @@ N=$(nproc)
 
 mkdir /lpbuild
 cd /lpbuild
+
+trap 'cp $(find /lpbuild/ -name "*.fail.log") /output/' EXIT
+
 export PATH="/usr/lib64/ccache:/usr/lib/ccache/:$PATH"
 /lilypond/autogen.sh  --enable-gs-api
 
