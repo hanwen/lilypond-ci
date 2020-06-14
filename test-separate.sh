@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # checkout a base revision, create baseline, checkout rev to test, run
 # the tests, make doc.
@@ -20,7 +20,7 @@ N=$(nproc)
 mkdir /lpbuild
 cd /lpbuild
 
-trap 'cp $(find /lpbuild/ -name "*.fail.log") /output/' EXIT
+trap "find /lilypond/ -name '*.fail.log' -exec cp '{}' /output/ ';'" ERR
 
 export PATH="/usr/lib64/ccache:/usr/lib/ccache/:$PATH"
 /lilypond/autogen.sh  --enable-gs-api
@@ -29,7 +29,8 @@ case "${stage}" in
     doc|check)
 	time make -j$N
 	time make test-baseline -j$N CPU_COUNT=$N USE_EXTRACTPDFMARK=no
-    ;;
+	;;
+    *)
 	make distclean
 	;;
 esac

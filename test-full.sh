@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # checkout a base revision, create baseline, checkout rev to test, run
 # the tests, make doc.
@@ -15,7 +15,7 @@ cd /lilypond
 cp -a $3/.git .
 git checkout -f $4
 
-trap 'cp $(find /lilypond/ -name "*.fail.log") /output/' EXIT
+trap "find /lilypond/ -name '*.fail.log' -exec cp '{}' /output/ ';'" ERR
 
 N=$(nproc)
 ./autogen.sh  --enable-gs-api
