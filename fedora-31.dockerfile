@@ -36,7 +36,6 @@ RUN dnf update -y && dnf install --setopt=install_weak_deps=False -y \
  texlive-tetex \
  texlive-tex-gyre \
  texlive-tex-gyre \
- tidy \
  time \
  && rm -rf /var/cache/dnf \
  && ./init-tex.sh \
