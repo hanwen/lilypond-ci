@@ -14,7 +14,7 @@ COPY lilypond/.git /lilypond/.git
 WORKDIR /lilypond
 RUN git checkout -f origin/master
 
-RUN ./autogen.sh && make -j$(nproc) \
+RUN ./autogen.sh --enable-gs-api && make -j$(nproc) \
   && make test-baseline -j$(nproc) CPU_COUNT=$(nproc) \
   && make distclean \
   && ccache -z
