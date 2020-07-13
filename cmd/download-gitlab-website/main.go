@@ -17,10 +17,9 @@ import (
 )
 
 type metadata struct {
-	PipelineCreatedAt time.Time
-	UnpackedAt        time.Time
-	JobID             int
-	PipelineID        int
+	JobFinishedAt time.Time
+	UnpackedAt    time.Time
+	JobID         int
 }
 
 type loggingRoundTripper struct {
@@ -53,6 +52,8 @@ func main() {
 	if *destDir == "" {
 		log.Fatal("must specify --dir")
 	}
+	*destDir = filepath.Clean(*destDir)
+
 	tokenBytes, err := ioutil.ReadFile(*tokenFile)
 	if err != nil {
 		log.Fatal(err)
@@ -66,59 +67,45 @@ func main() {
 	}
 
 	metadataFile := filepath.Join(*destDir, "artifact.json")
-	var last *time.Time
+	var lastJobID int
 	if c, err := ioutil.ReadFile(metadataFile); err == nil {
 		var m metadata
 		if err := json.Unmarshal(c, &m); err == nil {
 			// Add some padding so we don't find the last run.
-			t := m.PipelineCreatedAt.Add(30 * time.Second)
-			last = &t
+			lastJobID = m.JobID
 		}
 	}
 
-	success := gitlab.Success
-	pipelines, rep, err := client.Pipelines.ListProjectPipelines(*repo,
-		&gitlab.ListProjectPipelinesOptions{
-			Ref:          gitlab.String("master"),
-			Status:       &success,
-			UpdatedAfter: last,
-			OrderBy:      gitlab.String("updated_at"),
-			Sort:         gitlab.String("desc"),
+	jobs, rep, err := client.Jobs.ListProjectJobs(*repo,
+		&gitlab.ListJobsOptions{
+			Scope: []gitlab.BuildStateValue{gitlab.Success},
 		})
 	if err != nil {
-		log.Fatalf("ListProjectPipelinesOptions %T", err)
+		log.Fatalf("ListProjectJobs: %v", err)
 	}
 
 	if rep.TotalItems == 0 {
 		log.Printf("no items found; bailing.")
 		os.Exit(0)
 	}
-	log.Printf("found %d pipelines", rep.TotalItems)
 
 	var metadata metadata
 found:
-	for _, p := range pipelines {
-		jobs, _, err := client.Jobs.ListPipelineJobs(*repo, p.ID, &gitlab.ListJobsOptions{})
-
-		if err != nil {
-			log.Fatal("ListPipelineJobs", err)
+	for _, j := range jobs {
+		if j.Stage != "website" {
+			continue
 		}
-
-		for _, j := range jobs {
-			if j.Stage != "website" {
-				continue
-			}
-
-			for _, a := range j.Artifacts {
-				if a.Filename == "website.zip" {
-					metadata.JobID = j.ID
-					metadata.PipelineID = p.ID
-					metadata.PipelineCreatedAt = *p.CreatedAt
-					if !metadata.PipelineCreatedAt.After(*p.UpdatedAt) {
-						metadata.PipelineCreatedAt = *p.UpdatedAt
-					}
-					break found
-				}
+		if j.ID <= lastJobID {
+			// The API docs suggest that IDs are ever-increasing
+			log.Printf("no newer jobs found. bailing")
+			os.Exit(0)
+		}
+		log.Printf("J %#v", j)
+		for _, a := range j.Artifacts {
+			if a.Filename == "website.zip" {
+				metadata.JobID = j.ID
+				metadata.JobFinishedAt = *j.FinishedAt
+				break found
 			}
 		}
 	}
