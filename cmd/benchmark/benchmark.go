@@ -127,6 +127,11 @@ func buildVersion(v string) error {
 	if err := checkout(v); err != nil {
 		return err
 	}
+	if content, err := ioutil.ReadFile("config.make"); err != nil {
+		return err
+	} else if !strings.Contains(string(content), "-O2") {
+		return fmt.Errorf("config.mark is missing -O2")
+	}
 	bin := fmt.Sprintf("binaries/lilypond.%s", v)
 	callBin := fmt.Sprintf("out/bin/lilypond.%s", v)
 	if _, err := os.Lstat(bin); err != nil {
