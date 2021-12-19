@@ -53,6 +53,41 @@ func getBranch() (string, error) {
 	return branch, err
 }
 
+func getCPUSpeedsKhz() (speeds map[string]int, err error) {
+	keys := []string{"scaling_max_freq",
+		"scaling_min_freq",
+		"cpuinfo_min_freq",
+		"cpuinfo_max_freq",
+	}
+
+	speeds = make(map[string]int)
+	for _, k := range keys {
+		content, err := ioutil.ReadFile("/sys/devices/system/cpu/cpu0/cpufreq/" + k)
+		if err != nil {
+			return nil, err
+		}
+		spd, err := strconv.Atoi(strings.TrimSpace(string(content)))
+		if err != nil {
+			return nil, err
+		}
+		speeds[k] = spd
+	}
+	return speeds, nil
+}
+
+func setCPUSpeed(minKhz, maxKhz int) error {
+	min := fmt.Sprintf("%dkhz", minKhz)
+	max := fmt.Sprintf("%dkhz", maxKhz)
+	cmd := exec.Command("sudo", "-n", "cpupower", "frequency-set", "-u", max, "-d", min)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	log.Printf("running %s", cmd.Args)
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func Error(msg string) {
 	fmt.Println(msg)
 	if startBranch != "" {
@@ -247,7 +282,17 @@ func main() {
 	outDir := flag.String("out", "benchmark-results", "out dir")
 
 	flag.Parse()
-	var err error
+	speeds, err := getCPUSpeedsKhz()
+	check(err)
+
+	if min, max := speeds["scaling_min_freq"], speeds["scaling_max_freq"]; min != max {
+		if err := setCPUSpeed(speeds["cpuinfo_max_freq"]/2, speeds["cpuinfo_max_freq"]/2); err != nil {
+			log.Fatalf("setCPUSpeed %v", err)
+		}
+		defer setCPUSpeed(speeds["cpuinfo_min_freq"], speeds["cpuinfo_max_freq"])
+	} else {
+		log.Printf("CPU freq %d Mhz", min/1000)
+	}
 	if *baseline == "" {
 		*baseline, err = getCommit(*version + "^")
 		check(err)
