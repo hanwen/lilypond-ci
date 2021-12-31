@@ -53,6 +53,22 @@ func getBranch() (string, error) {
 	return branch, err
 }
 
+func getCPUType() (string, error) {
+	content, err := ioutil.ReadFile("/proc/cpuinfo")
+	if err != nil {
+		return "", err
+	}
+
+	for _, l := range strings.Split(string(content), "\n") {
+		fields := strings.SplitN(l, "\t: ", 2)
+		if fields[0] == "model name" {
+			return fields[1], nil
+		}
+	}
+
+	return "unknown", nil
+}
+
 func getCPUSpeedsKhz() (speeds map[string]int, err error) {
 	keys := []string{"scaling_max_freq",
 		"scaling_min_freq",
@@ -259,13 +275,24 @@ func analyzeData(base []float64, data []float64, name string, version string) st
 }
 
 func analyze(base, vers string, res allResults) string {
+	speeds, _ := getCPUSpeedsKhz()
+	cpu, _ := getCPUType()
+	if strings.Contains(cpu, "@") {
+		fs := strings.SplitN(cpu, "@", 2)
+		cpu = fs[0]
+	}
+
 	r := fmt.Sprintf(`benchmark for arguments: %s
+
+%s at %d Mhz
 
 raw data (%s):
    %v %v
 raw data (%s):
    %v %v
-`, res.args, base, res.baseMem, res.baseTime,
+`, res.args,
+		cpu, speeds["scaling_min_freq"]/1000,
+		base, res.baseMem, res.baseTime,
 		vers, res.versMem, res.versTime)
 
 	r += fmt.Sprintf(`%s - %s
