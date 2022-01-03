@@ -17,11 +17,12 @@ import (
 )
 
 var (
-	allPlatforms = []string{"ubuntu", "fedora", "fedora-guile2"}
+	allPlatforms = []string{"ubuntu16", "ubuntu18", "fedora", "fedora-guile2"}
 	allModes     = []string{"incremental", "full", "separate"}
 	allStages    = []string{"build", "check", "doc"}
 	dockerFiles  = map[string]string{
-		"ubuntu":        "ubuntu-xenial.dockerfile",
+		"ubuntu16":      "ubuntu-xenial.dockerfile",
+		"ubuntu18":      "ubuntu-beaver.dockerfile",
 		"fedora":        "fedora-31.dockerfile",
 		"fedora-guile2": "fedora-31-guile2.dockerfile",
 	}
@@ -203,7 +204,7 @@ git fetch -f %s %s:%s`, url, branch, branch)); err != nil {
 }
 
 func main() {
-	platform := flag.String("platform", "ubuntu", "platform to test on: "+strings.Join(allPlatforms, " "))
+	platform := flag.String("platform", "ubuntu18", "platform to test on: "+strings.Join(allPlatforms, " "))
 	mode := flag.String("mode", "incremental", "how to build: "+strings.Join(allModes, " "))
 	stage := flag.String("stage", "check", "which stage to execute: "+strings.Join(allStages, " "))
 	doTest := flag.Bool("test", true, "test a change")

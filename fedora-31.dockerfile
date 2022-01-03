@@ -7,6 +7,8 @@ RUN dnf update -y && dnf install --setopt=install_weak_deps=False -y \
  autoconf \
  automake \
  bison \
+ cairo \
+ cairo-devel \
  ccache \
  compat-guile18-devel \
  curl \
