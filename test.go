@@ -17,14 +17,15 @@ import (
 )
 
 var (
-	allPlatforms = []string{"ubuntu16", "ubuntu18", "fedora", "fedora-guile2"}
+	allPlatforms = []string{"ubuntu16", "ubuntu18", "fedora31", "fedora31-guile2", "fedora33"}
 	allModes     = []string{"incremental", "full", "separate"}
 	allStages    = []string{"build", "check", "doc"}
 	dockerFiles  = map[string]string{
-		"ubuntu16":      "ubuntu-xenial.dockerfile",
-		"ubuntu18":      "ubuntu-beaver.dockerfile",
-		"fedora":        "fedora-31.dockerfile",
-		"fedora-guile2": "fedora-31-guile2.dockerfile",
+		"ubuntu16":        "ubuntu-xenial.dockerfile",
+		"ubuntu18":        "ubuntu-beaver.dockerfile",
+		"fedora31":        "fedora-31.dockerfile",
+		"fedora33":        "fedora-33.dockerfile",
+		"fedora31-guile2": "fedora-31-guile2.dockerfile",
 	}
 )
 

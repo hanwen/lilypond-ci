@@ -1,4 +1,4 @@
-from fedora:31 as lilypond-base
+from fedora:33 as lilypond-base
 
 COPY init-tex.sh .
 
@@ -13,8 +13,8 @@ RUN dnf update -y && dnf install --setopt=install_weak_deps=False -y \
  compat-guile18-devel \
  curl \
  dblatex \
- dejavu-'*' \
  diffutils \
+ dejavu-'*' \
  extractpdfmark \
  flex \
  gdb \
