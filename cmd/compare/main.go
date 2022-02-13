@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io/ioutil"
 	"log"
 	"math"
 	"os"
@@ -16,6 +17,8 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
+	"time"
 )
 
 func sqDiffUInt8(x, y uint8) uint64 {
@@ -103,8 +106,8 @@ func ImageCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
 	return dst, math.Sqrt(float64(accumError)) / float64(size.Dx()*size.Dy()), nil
 }
 
-func readDir(dir string) (map[string]struct{}, error) {
-	d, err := filepath.Glob(filepath.Join(flag.Args()[0], "*.png"))
+func readDir(dir, pat string) (map[string]struct{}, error) {
+	d, err := filepath.Glob(filepath.Join(flag.Args()[0], pat))
 	if err != nil {
 		return nil, err
 	}
@@ -116,12 +119,216 @@ func readDir(dir string) (map[string]struct{}, error) {
 	return result, nil
 }
 
-func compareDir(in1, in2, out string, ncpu int) error {
-	dir1, err := readDir(in1)
+var localDataDir = flag.Bool("local", false, "")
+var verbose = flag.Bool("verbose", false, "")
+
+func convertEPSParallel(eps_files []string, ncpu int) (map[string]string, error) {
+	sz := len(eps_files) / ncpu
+	if sz == 0 {
+		sz++
+	}
+
+	chunks := make([][]string, ncpu)
+	for i, f := range eps_files {
+		chunks[i%ncpu] = append(chunks[i%ncpu], f)
+	}
+
+	type chunkResult struct {
+		filemap map[string]string
+		err     error
+	}
+	done := make(chan chunkResult, ncpu)
+	for _, chunk := range chunks {
+		go func(ch []string) {
+			var r chunkResult
+			r.filemap, r.err = convertEPS(ch)
+			done <- r
+		}(chunk)
+	}
+
+	result := map[string]string{}
+	for range chunks {
+		r := <-done
+		if r.err != nil {
+			return nil, r.err
+		}
+
+		for k, v := range r.filemap {
+			result[k] = v
+		}
+	}
+	return result, nil
+}
+
+func EPSBBoxEmpty(fn string) (bool, error) {
+	f, err := os.Open(fn)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	buf := make([]byte, 1024)
+	n, err := f.Read(buf)
+	if err != nil {
+		return false, err
+	}
+
+	header := string(buf[:n])
+
+	marker := "\n%%BoundingBox: "
+	idx := strings.Index(header, marker)
+	if idx < 0 {
+		return false, fmt.Errorf("no bbox in %s", fn)
+	}
+
+	header = header[idx+len(marker):]
+	header = header[:strings.Index(header, "\n")]
+	var dims []int
+	for _, n := range strings.Split(header, " ") {
+		dim, err := strconv.Atoi(n)
+		if err != nil {
+			return false, err
+		}
+		dims = append(dims, dim)
+	}
+
+	return dims[0] >= dims[2] || dims[1] >= dims[3], nil
+}
+
+func convertEPS(epsFiles []string) (map[string]string, error) {
+	dataOption := ""
+	if *localDataDir {
+		doneDir := map[string]bool{}
+		for _, fn := range epsFiles {
+			dir := filepath.Dir(fn)
+
+			if doneDir[dir] {
+				continue
+			}
+			doneDir[dir] = true
+			fi, err := os.Stat(filepath.Join(dir, "share"))
+			if err != nil && os.IsNotExist(err) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			dir, err = filepath.Abs(dir)
+			if err != nil {
+				return nil, err
+			}
+			if fi.IsDir() {
+				dataOption = fmt.Sprintf("-slilypond-datadir=%s/share/lilypond/current", dir)
+				break
+			}
+		}
+	}
+
+	emptyPS, err := ioutil.TempFile("", "emptyps")
+	if err != nil {
+		return nil, err
+	}
+	if err := ioutil.WriteFile(emptyPS.Name(), []byte(`%!PS-Adobe-3.0 EPSF-3.0
+%%BoundingBox: 0 0 1 1
+%%EndComments
+`), 0644); err != nil {
+		return nil, err
+	}
+	emptyPS.Close()
+	driver, err := ioutil.TempFile("", "emptyps")
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]string, len(epsFiles))
+	for _, fn := range epsFiles {
+		inputFn := fn
+		if empty, err := EPSBBoxEmpty(fn); err != nil {
+			return nil, err
+		} else if empty {
+			inputFn = emptyPS.Name()
+		}
+
+		outFn := strings.Replace(fn, ".eps", ".png", 1)
+		verbosePS := ""
+		if *verbose {
+			verbosePS = fmt.Sprintf(" (processing %s\n) print ", fn)
+		}
+
+		_, err = fmt.Fprintf(driver, `
+            %s
+            mark /OutputFile (%s)
+            /GraphicsAlphaBits 4 /TextAlphaBits 4
+            /HWResolution [101 101]
+            (png16m) finddevice putdeviceprops setdevice
+            (%s) run
+`, verbosePS, outFn, inputFn)
+		if err != nil {
+			return nil, err
+		}
+		result[fn] = outFn
+	}
+
+	driver.Close()
+	cmd := exec.Command(
+		"gs",
+		"-dNOSAFER",
+		"-dEPSCrop",
+		"-q",
+		"-dNOPAUSE",
+		"-dNODISPLAY",
+		"-dAutoRotatePages=/None",
+		"-dPrinted=false")
+	if dataOption != "" {
+		cmd.Args = append(cmd.Args, dataOption)
+	}
+	cmd.Args = append(cmd.Args, driver.Name(), "-c", "quit")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if *verbose {
+		log.Printf("calling %v", cmd.Args)
+	}
+	if err := cmd.Run(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func compareDirEPS(in1, in2, out string, ncpu int) error {
+	start := time.Now()
+	for _, dir := range []string{in1, in2} {
+		epsFiles, err := readDir(dir, "*.eps")
+		if err != nil {
+			return err
+		}
+
+		var keys []string
+		for k := range epsFiles {
+			keys = append(keys, filepath.Join(dir, k))
+		}
+		sort.Strings(keys)
+		if _, err := convertEPSParallel(keys, ncpu); err != nil {
+			return err
+		}
+	}
+	epsDT := time.Now().Sub(start)
+
+	start = time.Now()
+	err := compareDirPNG(in1, in2, out, ncpu)
+	pngDT := time.Now().Sub(start)
+
+	log.Printf("EPS -> PNG in %v", epsDT)
+	log.Printf("PNG diff in %v", pngDT)
+
+	return err
+}
+
+func compareDirPNG(in1, in2, out string, ncpu int) error {
+	dir1, err := readDir(in1, "*.png")
 	if err != nil {
 		return err
 	}
-	dir2, err := readDir(in2)
+	dir2, err := readDir(in2, "*.png")
 	if err != nil {
 		return err
 	}
@@ -184,7 +391,7 @@ func main() {
 	if len(flag.Args()) != 3 {
 		log.Fatal("usage: compare input-dir1 input-dir2 output-dir")
 	}
-	if err := compareDir(flag.Args()[0],
+	if err := compareDirEPS(flag.Args()[0],
 		flag.Args()[1],
 		flag.Args()[2], *ncpu); err != nil {
 		log.Fatal("compareDir: ", err)
