@@ -369,14 +369,23 @@ func compareDirPNG(in1, in2, out string, ncpu int) error {
 		}()
 	}
 
+	var results []result
 	for range names {
-		res := <-done
-		log.Printf("compared %s: %f", res.name, res.dist)
-		if res.err != nil {
-			return res.err
+		results = append(results, *<-done)
+	}
+
+	sort.Slice(results, func(i, j int) bool { return results[i].dist > results[j].dist })
+	for _, r := range results {
+		if r.err != nil {
+			return r.err
 		}
 	}
 
+	for _, r := range results {
+		if r.dist > 0 {
+			fmt.Printf("%-50s - %f\n", r.name, r.dist)
+		}
+	}
 	log.Printf("compared %d images", len(names))
 	return nil
 }
