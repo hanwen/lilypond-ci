@@ -131,15 +131,20 @@ var batchGS = flag.Bool("batch_gs", true, "")
 var localDataDir = flag.Bool("local", false, "")
 var verbose = flag.Bool("verbose", false, "")
 
-func convertEPSParallel(eps_files []string, ncpu int) (map[string]string, error) {
+func convertEPSParallel(eps_files map[string]string, ncpu int) error {
 	sz := len(eps_files) / ncpu
 	if sz == 0 {
 		sz++
 	}
 
-	chunks := make([][]string, ncpu)
-	for i, f := range eps_files {
-		chunks[i%ncpu] = append(chunks[i%ncpu], f)
+	chunks := make([]map[string]string, ncpu)
+	for i := range chunks {
+		chunks[i] = make(map[string]string)
+	}
+	i := 0
+	for k, v := range eps_files {
+		chunks[i%ncpu][k] = v
+		i++
 	}
 
 	type chunkResult struct {
@@ -148,9 +153,9 @@ func convertEPSParallel(eps_files []string, ncpu int) (map[string]string, error)
 	}
 	done := make(chan chunkResult, ncpu)
 	for _, chunk := range chunks {
-		go func(ch []string) {
+		go func(ch map[string]string) {
 			var r chunkResult
-			r.filemap, r.err = convertEPS(ch)
+			r.err = convertEPS(ch)
 			done <- r
 		}(chunk)
 	}
@@ -159,14 +164,14 @@ func convertEPSParallel(eps_files []string, ncpu int) (map[string]string, error)
 	for range chunks {
 		r := <-done
 		if r.err != nil {
-			return nil, r.err
+			return r.err
 		}
 
 		for k, v := range r.filemap {
 			result[k] = v
 		}
 	}
-	return result, nil
+	return nil
 }
 
 func EPSBBoxEmpty(fn string) (bool, error) {
@@ -204,28 +209,28 @@ func EPSBBoxEmpty(fn string) (bool, error) {
 	return dims[0] >= dims[2] || dims[1] >= dims[3], nil
 }
 
-func convertEPS(epsFiles []string) (map[string]string, error) {
+func convertEPS(epsFiles map[string]string) error {
 	if *batchGS {
 		return convertEPSBatch(epsFiles)
 	}
 
-	result := map[string]string{}
-	for _, f := range epsFiles {
-		r, err := convertEPSBatch([]string{f})
-		if err != nil {
-			return nil, err
+	for k, v := range epsFiles {
+		if err := convertEPSBatch(map[string]string{k: v}); err != nil {
+			return err
 		}
-		result[f] = r[f]
 	}
 
-	return result, nil
+	return nil
 }
 
-func convertEPSBatch(epsFiles []string) (map[string]string, error) {
+func convertEPSBatch(epsFiles map[string]string) error {
+	if len(epsFiles) == 0 {
+		return nil
+	}
 	dataOption := ""
 	if *localDataDir {
 		doneDir := map[string]bool{}
-		for _, fn := range epsFiles {
+		for fn := range epsFiles {
 			dir := filepath.Dir(fn)
 
 			if doneDir[dir] {
@@ -237,11 +242,11 @@ func convertEPSBatch(epsFiles []string) (map[string]string, error) {
 				continue
 			}
 			if err != nil {
-				return nil, err
+				return err
 			}
 			dir, err = filepath.Abs(dir)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			if fi.IsDir() {
 				dataOption = fmt.Sprintf("-slilypond-datadir=%s/share/lilypond/current", dir)
@@ -252,33 +257,30 @@ func convertEPSBatch(epsFiles []string) (map[string]string, error) {
 
 	emptyPS, err := ioutil.TempFile("", "emptyps")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if err := ioutil.WriteFile(emptyPS.Name(), []byte(`%!PS-Adobe-3.0 EPSF-3.0
 %%BoundingBox: 0 0 1 1
 %%EndComments
 `), 0644); err != nil {
-		return nil, err
+		return err
 	}
 	emptyPS.Close()
-	driver, err := ioutil.TempFile("", "emptyps")
+	driver, err := ioutil.TempFile("", "driverps")
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	result := make(map[string]string, len(epsFiles))
-	for _, fn := range epsFiles {
-		inputFn := fn
-		if empty, err := EPSBBoxEmpty(fn); err != nil {
-			return nil, err
-		} else if empty {
-			inputFn = emptyPS.Name()
-		}
-
-		outFn := strings.Replace(fn, ".eps", ".png", 1)
+	for inputFn, outFn := range epsFiles {
 		verbosePS := ""
 		if *verbose {
-			verbosePS = fmt.Sprintf(" (processing %s\n) print ", fn)
+			verbosePS = fmt.Sprintf(" (processing %s\n) print ", inputFn)
+		}
+
+		if empty, err := EPSBBoxEmpty(inputFn); err != nil {
+			return fmt.Errorf("EPSBBoxEmpty: %v", err)
+		} else if empty {
+			inputFn = emptyPS.Name()
 		}
 
 		_, err = fmt.Fprintf(driver, `
@@ -290,12 +292,13 @@ func convertEPSBatch(epsFiles []string) (map[string]string, error) {
             (%s) run
 `, verbosePS, outFn, inputFn)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		result[fn] = outFn
 	}
 
-	driver.Close()
+	if err := driver.Close(); err != nil {
+		return err
+	}
 	cmd := exec.Command(
 		"gs",
 		"-dNOSAFER",
@@ -315,9 +318,9 @@ func convertEPSBatch(epsFiles []string) (map[string]string, error) {
 		log.Printf("calling %v", cmd.Args)
 	}
 	if err := cmd.Run(); err != nil {
-		return nil, err
+		return err
 	}
-	return result, nil
+	return nil
 }
 
 func compareDirEPS(in1, in2, out string) (*compareResult, error) {
@@ -329,13 +332,13 @@ func compareDirEPS(in1, in2, out string) (*compareResult, error) {
 			return nil, err
 		}
 
-		var keys []string
-		for k := range epsFiles {
-			keys = append(keys, filepath.Join(dir, k))
+		fnMap := map[string]string{}
+		for fn := range epsFiles {
+			fnMap[filepath.Join(dir, fn)] = strings.Replace(fn, ".eps", ".png", 1)
 		}
-		sort.Strings(keys)
-		epsFileCount += len(keys)
-		if _, err := convertEPSParallel(keys, *gsJobs); err != nil {
+
+		epsFileCount += len(fnMap)
+		if err := convertEPSParallel(fnMap, *gsJobs); err != nil {
 			return nil, err
 		}
 	}
