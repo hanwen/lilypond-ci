@@ -323,36 +323,78 @@ func convertEPSBatch(epsFiles map[string]string) error {
 	return nil
 }
 
-func compareDirEPS(in1, in2, out string) (*compareResult, error) {
-	start := time.Now()
-	epsFileCount := 0
-	for _, dir := range []string{in1, in2} {
-		epsFiles, err := readDir(dir, "eps")
+func compareDir(in1, in2 string) (*compareResult, error) {
+	in1 = filepath.Clean(in1)
+	in2 = filepath.Clean(in2)
+	res := map[string]*fileResult{}
+	for i, dir := range []string{in1, in2} {
+		fns, err := ioutil.ReadDir(dir)
 		if err != nil {
 			return nil, err
 		}
 
+		for _, fn := range fns {
+			name := fn.Name()
+			if digitRE.FindString(name) == "" {
+				continue
+			}
+
+			name = filepath.Base(name)
+			name = name[:len(name)-len(filepath.Ext(name))]
+
+			fr := res[name]
+			if fr == nil {
+				fr = &fileResult{Name: name}
+				res[name] = fr
+			}
+
+			if !strings.HasSuffix(fr.In[i], ".png") {
+				fr.In[i] = filepath.Join(dir, fn.Name())
+			}
+		}
+	}
+	return &compareResult{
+		byName: res,
+		dirs:   [2]string{in1, in2},
+	}, nil
+}
+
+func (r *compareResult) renderPNG(outDir string) error {
+	start := time.Now()
+	epsFileCount := 0
+
+	for i := 0; i < 2; i++ {
 		fnMap := map[string]string{}
-		for fn := range epsFiles {
-			fnMap[filepath.Join(dir, fn)] = strings.Replace(fn, ".eps", ".png", 1)
+		for _, v := range r.byName {
+			if strings.HasSuffix(v.In[i], ".eps") {
+				newname := filepath.Join(outDir, fmt.Sprintf("%s.%d.png", v.Name, i))
+				fnMap[v.In[i]] = newname
+				v.In[i] = newname
+			}
 		}
 
 		epsFileCount += len(fnMap)
 		if err := convertEPSParallel(fnMap, *gsJobs); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	epsDT := time.Now().Sub(start)
 	log.Printf("Convert %d EPS files using %d cores (batch=%v) to PNG in %v (%v/file)", epsFileCount, *gsJobs, *batchGS, epsDT, epsDT/(1+time.Duration(epsFileCount)))
-
-	return compareDirPNG(in1, in2, out, *cmpJobs)
+	return nil
 }
 
 type compareResult struct {
-	Results []fileResult
+	byName  map[string]*fileResult
+	dirs    [2]string
+	Results []*fileResult
 }
 
 func (r *compareResult) Trim(max int) {
+	r.Results = nil
+	for _, v := range r.byName {
+		r.Results = append(r.Results, v)
+	}
+
 	sort.Slice(r.Results, func(i, j int) bool { return r.Results[i].Dist > r.Results[j].Dist })
 	for i := range r.Results {
 		if r.Results[i].Dist == 0.0 || i > max {
@@ -364,11 +406,13 @@ func (r *compareResult) Trim(max int) {
 
 func (r *compareResult) LinkFiles(outDir string) error {
 	for _, r := range r.Results {
-		if err := os.Link(r.in1, filepath.Join(outDir, r.Name+".1.png")); err != nil {
-			return err
-		}
-		if err := os.Link(r.in2, filepath.Join(outDir, r.Name+".2.png")); err != nil {
-			return err
+		for i := 0; i < 2; i++ {
+			if strings.HasPrefix(r.In[i], outDir) {
+				continue
+			}
+			if err := os.Link(r.In[i], filepath.Join(outDir, fmt.Sprintf("%s.%d.png", r.Name, i))); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -381,11 +425,11 @@ func (r *compareResult) DumpTXT(w io.Writer) {
 }
 
 type fileResult struct {
-	Name     string
-	Dist     float64
-	in1, in2 string
-	out      string
-	err      error
+	Name string
+	Dist float64
+	In   [2]string
+	out  string
+	err  error
 }
 
 var htmlTemplate *template.Template
@@ -412,14 +456,14 @@ func init() {
 	template.Must(htmlTemplate.New("entry").Parse(`
 <tr>
   <td>
-    <img src="{{.Name}}.1.png">
+    <img src="{{.Name}}.0.png">
     <br>
     {{.Name}}
   </td>
   <td>
     <div>
       <div style="position: absolute">
-         <img src="{{.Name}}.2.png">
+         <img src="{{.Name}}.1.png">
       </div>
       <div style="position: absolute; opacity: 0.3">
          <img src="{{.Name}}.diff.png">
@@ -452,60 +496,42 @@ func (r *compareResult) DumpHTML(w io.Writer) error {
 	return htmlTemplate.Execute(w, r)
 }
 
-func compareDirPNG(in1, in2, outDir string, ncpu int) (*compareResult, error) {
+func (r *compareResult) comparePNG(outDir string, ncpu int) error {
 	start := time.Now()
-	dir1, err := readDir(in1, "png")
-	if err != nil {
-		return nil, err
-	}
-	dir2, err := readDir(in2, "png")
-	if err != nil {
-		return nil, err
-	}
 
-	var names []string
-	for k := range dir1 {
-		if _, ok := dir2[k]; ok {
-			names = append(names, k)
-		}
-	}
-
-	sort.Strings(names)
-	todo := make(chan *fileResult, len(names))
-	done := make(chan *fileResult, len(names))
-	for _, k := range names {
-		nm := k[:len(k)-len(filepath.Ext(k))]
-		todo <- &fileResult{
-			Name: nm,
-			in1:  filepath.Join(in1, k),
-			in2:  filepath.Join(in2, k),
-			out:  filepath.Join(outDir, nm+".diff.png"),
+	todo := make(chan *fileResult, len(r.byName))
+	scheduled := 0
+	for _, v := range r.byName {
+		if v.In[0] != "" && v.In[1] != "" {
+			v.out = filepath.Join(outDir, v.Name+".diff.png")
+			scheduled++
+			todo <- v
 		}
 	}
 	close(todo)
-
+	done := make(chan *fileResult, scheduled)
 	for i := 0; i < ncpu; i++ {
 		go func() {
 			for t := range todo {
-				t.Dist, t.err = compareOne(t.in1, t.in2, t.out)
+				t.err = t.compareOne()
 				done <- t
 			}
 		}()
 	}
 
-	var result compareResult
-	for range names {
-		result.Results = append(result.Results, *<-done)
+	for i := 0; i < scheduled; i++ {
+		<-done
 	}
-	pngDT := time.Now().Sub(start)
-	log.Printf("compared %d PNG image pairs using %d cores (imagemagick=%v) in %v (%v / pair)", len(names), ncpu, *imageMagick, pngDT, pngDT/time.Duration(len(names)))
 
-	for _, r := range result.Results {
-		if r.err != nil {
-			return nil, r.err
+	pngDT := time.Now().Sub(start)
+	log.Printf("compared %d PNG image pairs using %d cores (imagemagick=%v) in %v (%v / pair)", scheduled, ncpu, *imageMagick, pngDT, pngDT/time.Duration(1+scheduled))
+
+	for _, fr := range r.byName {
+		if fr.err != nil {
+			return fr.err
 		}
 	}
-	return &result, nil
+	return nil
 }
 
 var (
@@ -529,11 +555,17 @@ func main() {
 	if err := os.MkdirAll(outDir, 0777); err != nil {
 		log.Fatalf("MkdirAll: %v", err)
 	}
-	result, err := compareDirEPS(flag.Args()[0],
-		flag.Args()[1],
-		outDir)
+
+	result, err := compareDir(flag.Args()[0],
+		flag.Args()[1])
 	if err != nil {
-		log.Fatal("compareDir: ", err)
+		log.Fatalf("compareDir: %v", err)
+	}
+	if err := result.renderPNG(outDir); err != nil {
+		log.Fatal("renderPNG: ", err)
+	}
+	if err := result.comparePNG(outDir, *cmpJobs); err != nil {
+		log.Fatal("comparePNG: ", err)
 	}
 
 	result.Trim(*max)
@@ -562,9 +594,9 @@ func asRGBA(img image.Image) *image.RGBA {
 
 var imageMagickRE = regexp.MustCompile("all: [0-9.e-]* \\(([0-9.e-]*)\\)")
 
-func compareOneIM(in1, in2, out string) (float64, error) {
+func (fr *fileResult) compareOneIM() error {
 	cmd := exec.Command("compare", "-verbose", "-metric", "MAE",
-		in1, in2, out)
+		fr.In[0], fr.In[1], fr.out)
 
 	stdout := &bytes.Buffer{}
 	cmd.Stdout = stdout
@@ -577,7 +609,7 @@ func compareOneIM(in1, in2, out string) (float64, error) {
 			}
 		}
 		if err != nil {
-			return 0, err
+			return err
 		}
 	}
 
@@ -585,51 +617,54 @@ func compareOneIM(in1, in2, out string) (float64, error) {
 
 	submatch := imageMagickRE.FindStringSubmatch(str)
 	if len(submatch) != 2 {
-		return 0, fmt.Errorf("missing re")
+		return fmt.Errorf("missing re")
 	}
 
-	return strconv.ParseFloat(submatch[1], 64)
+	dist, err := strconv.ParseFloat(submatch[1], 64)
+	fr.Dist = dist
+	return err
 }
 
-func compareOne(in1, in2, out string) (float64, error) {
+func (fr *fileResult) compareOne() error {
 	if *imageMagick {
-		return compareOneIM(in1, in2, out)
+		return fr.compareOneIM()
 	}
 
-	f1, err := os.Open(in1)
+	f1, err := os.Open(fr.In[0])
 	if err != nil {
-		return 0, err
+		return err
 	}
 	defer f1.Close()
+
 	i1, err := png.Decode(f1)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	f2, err := os.Open(in2)
+	f2, err := os.Open(fr.In[1])
 	if err != nil {
-		return 0, err
+		return err
 	}
 	defer f2.Close()
 	i2, err := png.Decode(f2)
 	if err != nil {
-		return 0, err
+		return err
 	}
-
 	diff, dist, err := ImageCompare(asRGBA(i1), asRGBA(i2))
 	if err != nil {
-		return 0, err
+		return err
 	}
+	fr.Dist = dist
 	if dist > 0 {
-		os.MkdirAll(filepath.Dir(out), 0755)
+		os.MkdirAll(filepath.Dir(fr.out), 0755)
 
-		out_f, err := os.OpenFile(out, os.O_WRONLY|os.O_CREATE, 0666)
+		outF, err := os.OpenFile(fr.out, os.O_WRONLY|os.O_CREATE, 0666)
 		if err != nil {
-			return 0, err
+			return err
 		}
-		if err := png.Encode(out_f, diff); err != nil {
-			return 0, err
+		if err := png.Encode(outF, diff); err != nil {
+			return err
 		}
-		return dist, out_f.Close()
+		return outF.Close()
 	}
-	return dist, nil
+	return nil
 }
