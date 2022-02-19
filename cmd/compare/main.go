@@ -29,10 +29,10 @@ func sqDiffUInt8(x, y uint8) uint64 {
 }
 
 func sqDiffRGBA(p, q color.RGBA) uint64 {
-	r := int64(p.R) - int64(p.R)
-	g := int64(p.G) - int64(p.G)
-	b := int64(p.B) - int64(p.B)
-	a := int64(p.A) - int64(p.A)
+	r := int64(p.R) - int64(q.R)
+	g := int64(p.G) - int64(q.G)
+	b := int64(p.B) - int64(q.B)
+	a := int64(p.A) - int64(q.A)
 	return uint64(r*r) + uint64(g*g) + uint64(b*b) + uint64(a*a)
 }
 
