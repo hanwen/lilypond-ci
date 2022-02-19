@@ -108,14 +108,20 @@ func ImageCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
 	return dst, math.Sqrt(float64(accumError)) / float64(size.Dx()*size.Dy()), nil
 }
 
-func readDir(dir, pat string) (map[string]struct{}, error) {
-	d, err := filepath.Glob(filepath.Join(flag.Args()[0], pat))
+var digitRE = regexp.MustCompile("-[0-9][0-9]*.(eps|png)$")
+
+func readDir(dir, ext string) (map[string]struct{}, error) {
+	d, err := filepath.Glob(filepath.Join(flag.Args()[0], "*."+ext))
 	if err != nil {
 		return nil, err
 	}
 	result := make(map[string]struct{}, len(d))
 	for _, n := range d {
-		result[filepath.Base(n)] = struct{}{}
+		b := filepath.Base(n)
+		if digitRE.FindString(b) == "" {
+			continue
+		}
+		result[b] = struct{}{}
 	}
 
 	return result, nil
@@ -318,7 +324,7 @@ func compareDirEPS(in1, in2, out string) error {
 	start := time.Now()
 	epsFileCount := 0
 	for _, dir := range []string{in1, in2} {
-		epsFiles, err := readDir(dir, "*.eps")
+		epsFiles, err := readDir(dir, "eps")
 		if err != nil {
 			return err
 		}
@@ -445,11 +451,11 @@ func (r *compareResult) DumpHTML(w io.Writer) error {
 
 func compareDirPNG(in1, in2, outDir string, ncpu int) error {
 	start := time.Now()
-	dir1, err := readDir(in1, "*.png")
+	dir1, err := readDir(in1, "png")
 	if err != nil {
 		return err
 	}
-	dir2, err := readDir(in2, "*.png")
+	dir2, err := readDir(in2, "png")
 	if err != nil {
 		return err
 	}
