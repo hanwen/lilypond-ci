@@ -398,7 +398,7 @@ func init() {
   <title>Image comparison</title>
   <body>
     <table>
-      <th><td>old</td><td>new</td></th>
+      <tr><th>old</th><th>new</th></tr>
       {{range .Results}}
          {{template "entry" .}}        
       {{end}}
