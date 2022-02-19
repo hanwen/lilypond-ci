@@ -5,9 +5,11 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"html/template"
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"io/ioutil"
 	"log"
 	"math"
@@ -119,6 +121,7 @@ func readDir(dir, pat string) (map[string]struct{}, error) {
 	return result, nil
 }
 
+var batchGS = flag.Bool("batch_gs", true, "")
 var localDataDir = flag.Bool("local", false, "")
 var verbose = flag.Bool("verbose", false, "")
 
@@ -196,6 +199,23 @@ func EPSBBoxEmpty(fn string) (bool, error) {
 }
 
 func convertEPS(epsFiles []string) (map[string]string, error) {
+	if *batchGS {
+		return convertEPSBatch(epsFiles)
+	}
+
+	result := map[string]string{}
+	for _, f := range epsFiles {
+		r, err := convertEPSBatch([]string{f})
+		if err != nil {
+			return nil, err
+		}
+		result[f] = r[f]
+	}
+
+	return result, nil
+}
+
+func convertEPSBatch(epsFiles []string) (map[string]string, error) {
 	dataOption := ""
 	if *localDataDir {
 		doneDir := map[string]bool{}
@@ -294,8 +314,9 @@ func convertEPS(epsFiles []string) (map[string]string, error) {
 	return result, nil
 }
 
-func compareDirEPS(in1, in2, out string, ncpu int) error {
+func compareDirEPS(in1, in2, out string) error {
 	start := time.Now()
+	epsFileCount := 0
 	for _, dir := range []string{in1, in2} {
 		epsFiles, err := readDir(dir, "*.eps")
 		if err != nil {
@@ -307,23 +328,123 @@ func compareDirEPS(in1, in2, out string, ncpu int) error {
 			keys = append(keys, filepath.Join(dir, k))
 		}
 		sort.Strings(keys)
-		if _, err := convertEPSParallel(keys, ncpu); err != nil {
+		epsFileCount += len(keys)
+		if _, err := convertEPSParallel(keys, *gsJobs); err != nil {
 			return err
 		}
 	}
 	epsDT := time.Now().Sub(start)
+	log.Printf("Convert %d EPS files using %d cores (batch=%v) to PNG in %v (%v/file)", epsFileCount, *gsJobs, *batchGS, epsDT, epsDT/time.Duration(epsFileCount))
 
-	start = time.Now()
-	err := compareDirPNG(in1, in2, out, ncpu)
-	pngDT := time.Now().Sub(start)
-
-	log.Printf("EPS -> PNG in %v", epsDT)
-	log.Printf("PNG diff in %v", pngDT)
+	err := compareDirPNG(in1, in2, out, *cmpJobs)
 
 	return err
 }
 
-func compareDirPNG(in1, in2, out string, ncpu int) error {
+type compareResult struct {
+	Results []fileResult
+}
+
+func (r *compareResult) Trim() {
+	sort.Slice(r.Results, func(i, j int) bool { return r.Results[i].Dist > r.Results[j].Dist })
+	for i := range r.Results {
+		if r.Results[i].Dist == 0.0 {
+			r.Results = r.Results[:i]
+			break
+		}
+	}
+}
+
+func (r *compareResult) LinkFiles(outDir string) error {
+	for _, r := range r.Results {
+		if err := os.Link(r.in1, filepath.Join(outDir, r.Name+".1.png")); err != nil {
+			return err
+		}
+		if err := os.Link(r.in2, filepath.Join(outDir, r.Name+".2.png")); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *compareResult) DumpTXT(w io.Writer) {
+	for _, r := range r.Results {
+		fmt.Fprintf(w, "%-50s - %f\n", r.Name, r.Dist)
+	}
+}
+
+type fileResult struct {
+	Name     string
+	Dist     float64
+	in1, in2 string
+	out      string
+	err      error
+}
+
+var htmlTemplate *template.Template
+
+func init() {
+	htmlTemplate = template.Must(template.New("html").Parse(`
+<html>
+  <style>
+    table, th, td {
+      border: 1px solid grey;
+    }
+  </style>
+  <title>Image comparison</title>
+  <body>
+    <table>
+      <th><td>old</td><td>new</td></th>
+      {{range .Results}}
+         {{template "entry" .}}        
+      {{end}}
+    </table>
+  </body>
+</html>
+`))
+	template.Must(htmlTemplate.New("entry").Parse(`
+<tr>
+  <td>
+    <img src="{{.Name}}.1.png">
+    <br>
+    {{.Name}}
+  </td>
+  <td>
+    <div>
+      <div style="position: absolute">
+         <img src="{{.Name}}.2.png">
+      </div>
+      <div style="position: absolute; opacity: 0.3">
+         <img src="{{.Name}}.diff.png">
+      </div>
+      <div style="opacity: 0.0">
+         <img src="{{.Name}}.diff.png">
+      </div>
+    </div>
+  </td>
+</tr>
+`))
+
+}
+
+func (r *compareResult) DumpHTMLFile(outDir string) error {
+	f, err := os.Create(filepath.Join(outDir, "index.html"))
+	if err != nil {
+		return err
+	}
+
+	if err := r.DumpHTML(f); err != nil {
+		return err
+	}
+	return f.Close()
+}
+
+func (r *compareResult) DumpHTML(w io.Writer) error {
+	return htmlTemplate.Execute(w, r)
+}
+
+func compareDirPNG(in1, in2, outDir string, ncpu int) error {
+	start := time.Now()
 	dir1, err := readDir(in1, "*.png")
 	if err != nil {
 		return err
@@ -341,21 +462,15 @@ func compareDirPNG(in1, in2, out string, ncpu int) error {
 	}
 
 	sort.Strings(names)
-	type result struct {
-		name     string
-		dist     float64
-		in1, in2 string
-		out      string
-		err      error
-	}
-	todo := make(chan *result, len(names))
-	done := make(chan *result, len(names))
+	todo := make(chan *fileResult, len(names))
+	done := make(chan *fileResult, len(names))
 	for _, k := range names {
-		todo <- &result{
-			name: k,
+		nm := k[:len(k)-len(filepath.Ext(k))]
+		todo <- &fileResult{
+			Name: nm,
 			in1:  filepath.Join(in1, k),
 			in2:  filepath.Join(in2, k),
-			out:  filepath.Join(out, k),
+			out:  filepath.Join(outDir, nm+".diff.png"),
 		}
 	}
 	close(todo)
@@ -363,35 +478,34 @@ func compareDirPNG(in1, in2, out string, ncpu int) error {
 	for i := 0; i < ncpu; i++ {
 		go func() {
 			for t := range todo {
-				t.dist, t.err = compareOne(t.in1, t.in2, t.out)
+				t.Dist, t.err = compareOne(t.in1, t.in2, t.out)
 				done <- t
 			}
 		}()
 	}
 
-	var results []result
+	var result compareResult
 	for range names {
-		results = append(results, *<-done)
+		result.Results = append(result.Results, *<-done)
 	}
+	pngDT := time.Now().Sub(start)
+	log.Printf("compared %d PNG image pairs using %d cores (imagemagick=%v) in %v (%v / pair)", len(names), ncpu, *imageMagick, pngDT, pngDT/time.Duration(len(names)))
 
-	sort.Slice(results, func(i, j int) bool { return results[i].dist > results[j].dist })
-	for _, r := range results {
+	for _, r := range result.Results {
 		if r.err != nil {
 			return r.err
 		}
 	}
 
-	for _, r := range results {
-		if r.dist > 0 {
-			fmt.Printf("%-50s - %f\n", r.name, r.dist)
-		}
-	}
-	log.Printf("compared %d images", len(names))
-	return nil
+	result.Trim()
+	result.LinkFiles(outDir)
+	result.DumpTXT(os.Stdout)
+	return result.DumpHTMLFile(outDir)
 }
 
 var (
-	ncpu        = flag.Int("jobs", 1, "")
+	gsJobs      = flag.Int("gs_jobs", 1, "")
+	cmpJobs     = flag.Int("cmp_jobs", 1, "")
 	imageMagick = flag.Bool("imagemagick", false, "")
 )
 
@@ -402,7 +516,7 @@ func main() {
 	}
 	if err := compareDirEPS(flag.Args()[0],
 		flag.Args()[1],
-		flag.Args()[2], *ncpu); err != nil {
+		flag.Args()[2]); err != nil {
 		log.Fatal("compareDir: ", err)
 	}
 }
