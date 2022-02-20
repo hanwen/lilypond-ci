@@ -17,23 +17,32 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func sqDiffUInt8(x, y uint8) uint64 {
-	d := int64(x) - int64(y)
-	return uint64(d * d)
+func absdiff(a, b uint8) uint8 {
+	if a > b {
+		return a - b
+	}
+	return b - a
 }
 
-func sqDiffRGBA(p, q color.RGBA) uint64 {
-	r := int64(p.R) - int64(q.R)
-	g := int64(p.G) - int64(q.G)
-	b := int64(p.B) - int64(q.B)
-	a := int64(p.A) - int64(q.A)
-	return uint64(r*r) + uint64(g*g) + uint64(b*b) + uint64(a*a)
+func sqDiffUInt8(x, y uint8) (uint64, uint8) {
+	d := absdiff(x, y)
+	return uint64(d * d), d
+}
+
+func sqDiffRGBA(p, q color.RGBA) (uint64, uint8) {
+	r := absdiff(p.R, q.R)
+	g := absdiff(p.G, q.R)
+	b := absdiff(p.B, q.B)
+
+	// ignore alpha
+	return uint64(r*r + g*g + b*b), (r + g + b) / 3
 }
 
 func UnequalCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
@@ -56,30 +65,30 @@ func UnequalCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
 	var accumError int64
 	for y := 0; y < min.Y; y++ {
 		for x := 0; x < min.X; x++ {
-			diff16 := sqDiffRGBA(img1.RGBAAt(x, y), img2.RGBAAt(x, y))
-			accumError += int64(diff16)
-			if diff16 > 0 {
+			sqDiff, absDiff := sqDiffRGBA(img1.RGBAAt(x, y), img2.RGBAAt(x, y))
+			accumError += int64(sqDiff)
+			if absDiff > 0 {
 				dst.Pix[dst.PixOffset(x, y)] = 0xff
-				dst.Pix[dst.PixOffset(x, y)+3] = 0xff
+				dst.Pix[dst.PixOffset(x, y)+3] = absDiff
 			}
 		}
 		for x := min.X; x < max.X; x++ {
-			diff16 := sqDiffRGBA(maxXImg.RGBAAt(x, y), white)
-			accumError += int64(diff16)
-			if diff16 > 0 {
+			sqDiff, absDiff := sqDiffRGBA(maxXImg.RGBAAt(x, y), white)
+			accumError += int64(sqDiff)
+			if absDiff > 0 {
 				dst.Pix[dst.PixOffset(x, y)] = 0xff
-				dst.Pix[dst.PixOffset(x, y)+3] = 0xff
+				dst.Pix[dst.PixOffset(x, y)+3] = absDiff
 			}
 		}
 	}
 	for y := min.Y; y < max.Y; y++ {
 		maxX := maxYImg.Bounds().Max.X
 		for x := 0; x < maxX; x++ {
-			diff16 := sqDiffRGBA(maxXImg.RGBAAt(x, y), white)
-			accumError += int64(diff16)
-			if diff16 > 0 {
+			sqDiff, absDiff := sqDiffRGBA(maxXImg.RGBAAt(x, y), white)
+			accumError += int64(sqDiff)
+			if absDiff > 0 {
 				dst.Pix[dst.PixOffset(x, y)] = 0xff
-				dst.Pix[dst.PixOffset(x, y)+3] = 0xff
+				dst.Pix[dst.PixOffset(x, y)+3] = absDiff
 			}
 		}
 	}
@@ -98,11 +107,11 @@ func ImageCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
 	accumError := int64(0)
 
 	for i := 0; i < len(img1.Pix); i++ {
-		diff16 := sqDiffUInt8(img1.Pix[i], img2.Pix[i])
-		accumError += int64(diff16)
-		if diff16 > 0 {
-			dst.Pix[i-i%4] = 0xff
-			dst.Pix[i-i%4+3] = 0xff
+		sqDiff, absDiff := sqDiffUInt8(img1.Pix[i], img2.Pix[i])
+		accumError += int64(sqDiff)
+		if absDiff > 0 && i%4 != 3 {
+			dst.Pix[i-i%4] += 0xff
+			dst.Pix[i-i%4+3] = absDiff / 3
 		}
 	}
 	return dst, math.Sqrt(float64(accumError)) / float64(size.Dx()*size.Dy()), nil
