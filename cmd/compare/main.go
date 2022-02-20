@@ -542,8 +542,8 @@ func (r *compareResult) comparePNG(outDir string, ncpu int) error {
 }
 
 var (
-	gsJobs      = flag.Int("gs_jobs", 1, "")
-	cmpJobs     = flag.Int("cmp_jobs", 1, "")
+	gsJobs      = flag.Int("gs_jobs", runtime.NumCPU(), "")
+	cmpJobs     = flag.Int("cmp_jobs", runtime.NumCPU(), "")
 	imageMagick = flag.Bool("imagemagick", false, "")
 	max         = flag.Int("max", 0, "output top-N differences")
 )
