@@ -456,7 +456,14 @@ func init() {
 	template.Must(htmlTemplate.New("entry").Parse(`
 <tr>
   <td>
-    <img src="{{.Name}}.0.png">
+    <div>
+      <div style="position: absolute">
+	<img src="{{.Name}}.0.png">
+      </div>
+      <div style="opacity: 0.0">
+	<img src="{{.Name}}.0.png">
+      </div>
+    <div>
     <br>
     {{.Name}}
   </td>
