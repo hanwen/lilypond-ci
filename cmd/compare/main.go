@@ -24,28 +24,28 @@ import (
 	"time"
 )
 
-func absdiff(a, b uint8) uint8 {
+func absdiff(a, b uint8) uint32 {
 	if a > b {
-		return a - b
+		return uint32(a - b)
 	}
-	return b - a
+	return uint32(b - a)
 }
 
-func sqDiffUInt8(x, y uint8) (uint64, uint8) {
+func sqDiffUInt8(x, y uint8) (uint64, uint32) {
 	d := absdiff(x, y)
 	return uint64(d * d), d
 }
 
 func sqDiffRGBA(p, q color.RGBA) (uint64, uint8) {
 	r := absdiff(p.R, q.R)
-	g := absdiff(p.G, q.R)
+	g := absdiff(p.G, q.G)
 	b := absdiff(p.B, q.B)
 
 	// ignore alpha
-	return uint64(r*r + g*g + b*b), (r + g + b) / 3
+	return uint64(r*r + g*g + b*b), uint8((r + g + b) / 3)
 }
 
-func UnequalCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
+func ImageCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
 	max := img1.Bounds().Union(img2.Bounds()).Max
 	minRect := img1.Bounds().Intersect(img2.Bounds())
 	min := minRect.Max
@@ -94,27 +94,6 @@ func UnequalCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
 	}
 
 	return dst, math.Sqrt(float64(accumError)) / float64(minRect.Dx()*minRect.Dy()), nil
-}
-
-func ImageCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
-	if img1.Bounds() != img2.Bounds() {
-		return UnequalCompare(img1, img2)
-	}
-
-	size := img1.Bounds()
-	dst := image.NewRGBA(size)
-
-	accumError := int64(0)
-
-	for i := 0; i < len(img1.Pix); i++ {
-		sqDiff, absDiff := sqDiffUInt8(img1.Pix[i], img2.Pix[i])
-		accumError += int64(sqDiff)
-		if absDiff > 0 && i%4 != 3 {
-			dst.Pix[i-i%4] += 0xff
-			dst.Pix[i-i%4+3] = absDiff / 3
-		}
-	}
-	return dst, math.Sqrt(float64(accumError)) / float64(size.Dx()*size.Dy()), nil
 }
 
 var digitRE = regexp.MustCompile("-[0-9][0-9]*.(eps|png)$")
@@ -454,7 +433,7 @@ func init() {
   <title>Image comparison</title>
   <body>
     <table>
-      <tr><th>old</th><th>new</th></tr>
+      <tr><th>dist</th><th>old</th><th>new</th></tr>
       {{range .Results}}
          {{template "entry" .}}        
       {{end}}
@@ -464,6 +443,9 @@ func init() {
 `))
 	template.Must(htmlTemplate.New("entry").Parse(`
 <tr>
+  <td>
+    {{printf "%.4f" .Dist}}
+  </td>
   <td>
     <div>
       <div style="position: absolute">
@@ -481,7 +463,7 @@ func init() {
       <div style="position: absolute">
          <img src="{{.Name}}.1.png">
       </div>
-      <div style="position: absolute; opacity: 0.3">
+      <div style="position: absolute; opacity: 1.0">
          <img src="{{.Name}}.diff.png">
       </div>
       <div style="opacity: 0.0">
