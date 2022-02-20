@@ -397,7 +397,7 @@ func (r *compareResult) Trim(max int) {
 
 	sort.Slice(r.Results, func(i, j int) bool { return r.Results[i].Dist > r.Results[j].Dist })
 	for i := range r.Results {
-		if r.Results[i].Dist == 0.0 || i > max {
+		if r.Results[i].Dist == 0.0 || (max > 0 && i > max) {
 			r.Results = r.Results[:i]
 			break
 		}
