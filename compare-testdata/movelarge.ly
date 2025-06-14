@@ -1,0 +1,1 @@
+\relative c'' { c4 r4 c4 c4_. }
