@@ -77,6 +77,27 @@ func newSignedImage(rect image.Rectangle) *signedImage {
 	}
 }
 
+type sumImage struct {
+	*signedImage
+}
+
+func (p *sumImage) Val(x, y int) float64 {
+	if y < p.Rect.Min.Y {
+		return 0.0
+	}
+	if x < p.Rect.Min.X {
+		return 0.0
+	}
+	if x >= p.Rect.Max.X {
+		x = p.Rect.Max.X - 1
+	}
+	if y >= p.Rect.Max.Y {
+		y = p.Rect.Max.Y - 1
+	}
+
+	return p.signedImage.Val(x, y)
+}
+
 func (p *signedImage) Val(x, y int) float64 {
 	if x < p.Rect.Min.X || x >= p.Rect.Max.X {
 		return 0.0
@@ -103,15 +124,13 @@ func (p *signedImage) AvgAbs() float64 {
 	return sum / float64(len(p.Pix))
 }
 
-func (p *signedImage) dump(fn string, scale int) error {
+func (p *signedImage) dump(fn string) error {
 	r := p.Rect
-	r.Max.X *= scale
-	r.Max.Y *= scale
 
 	img := image.NewRGBA(r)
 	for y := range r.Max.Y {
 		for x := range r.Max.X {
-			v := p.Val(x/scale, y/scale)
+			v := p.Val(x, y)
 			img.SetRGBA(x, y, unitToRGBA(v))
 		}
 	}
@@ -130,104 +149,88 @@ func rgbSum(c color.RGBA) float64 {
 	return float64(c.R) + float64(c.G) + float64(c.B)
 }
 
-func ImageCompareConvolve2x2(img1, img2 *image.RGBA, name string) (*image.RGBA, float64, error) {
-	maxRect := img1.Bounds().Union(img2.Bounds()).Max
-	blockSize := 1
-	for blockSize < max(maxRect.X, maxRect.Y) {
-		blockSize <<= 1
+func newIntegralImage(in *signedImage) *sumImage {
+	s := &sumImage{newSignedImage(in.Rect)}
+	for y := range in.Rect.Max.Y {
+		for x := range in.Rect.Max.X {
+			s.Set(x, y, in.Val(x, y)+s.Val(x-1, y)+s.Val(x, y-1)-s.Val(x-1, y-1))
+		}
 	}
-	dst := newSignedImage(image.Rectangle{Max: image.Point{X: blockSize, Y: blockSize}})
+	return s
+}
+
+func ImageCompareConvolve(img1, img2 *image.RGBA, name string) (*image.RGBA, float64, error) {
+	maxPoint := img1.Bounds().Union(img2.Bounds()).Max
+	maxRect := image.Rectangle{Max: maxPoint}
+	diffImg := newSignedImage(maxRect)
 
 	w1 := whiteBGImage{img1}
 	w2 := whiteBGImage{img2}
 
-	for y := 0; y < dst.Rect.Max.Y; y++ {
-		for x := 0; x < dst.Rect.Max.X; x++ {
+	for y := range maxPoint.Y {
+		for x := range maxPoint.X {
 			c1 := w1.RGBAAt(x, y)
 			c2 := w2.RGBAAt(x, y)
 
 			// diff has range (-1,1)
 			diff := (rgbSum(c1) - rgbSum(c2)) / (3 * 255.0)
 
-			dst.Pix[dst.PixOffset(x, y)] = diff
+			diffImg.Set(x, y, diff)
 		}
 	}
 
-	resolutions := []*signedImage{dst}
-	scale := 1
-	for dst.Rect.Dx() > 1 && dst.Rect.Dy() > 1 {
-		if *debug {
-			dst.dump(fmt.Sprintf("%s-%d.png", name, scale), scale)
-		}
-		src := dst
-		scale *= 2
-
-		dx := src.Rect.Max.X / 2
-		dy := src.Rect.Max.Y / 2
-		dst = newSignedImage(image.Rectangle{
-			Max: image.Point{
-				X: dx,
-				Y: dy,
-			}})
-		for y := range dy {
-			for x := range dx {
-				sx := 2 * x
-				sy := 2 * y
-				val := src.Val(sx, sy) + src.Val(sx+1, sy) + src.Val(sx, sy+1) + src.Val(sx+1, sy+1)
-				dst.Set(x, y, val/4.0)
+	sumDiffImg := newIntegralImage(diffImg)
+	resolutions := []*signedImage{diffImg}
+	delta := 1
+	for delta < maxRect.Dx() && delta < maxRect.Dy() {
+		dst := newSignedImage(maxRect)
+		for y := range maxPoint.Y {
+			for x := range maxPoint.X {
+				boxSum := sumDiffImg.Val(x+delta, y+delta) - sumDiffImg.Val(x+delta, y-delta-1) +
+					sumDiffImg.Val(x-delta-1, y-delta-1) - sumDiffImg.Val(x-delta-1, y+delta)
+				width := float64(2*delta + 1)
+				dst.Set(x, y, boxSum/(width*width))
 			}
 		}
 
 		resolutions = append(resolutions, dst)
-		src = dst
+		delta *= 2
 	}
 
-	diffImg := image.NewRGBA(image.Rectangle{Max: maxRect})
-
+	diffRGB := image.NewRGBA(maxRect)
 	if *debug {
 		for i, r := range resolutions {
 			log.Printf("%s: %d: %e", name, i, r.AvgAbs())
+			r.dump(fmt.Sprintf("%s-%d.png", name, i))
 		}
 	}
 
 	dist := 0.0
-	for y := range maxRect.Y {
-		for x := range maxRect.X {
-			distDiff, visualDiff := 0.0, 0.0
+	for y := range maxPoint.Y {
+		for x := range maxPoint.X {
+			diff := 0.0
 
-			rx, ry := x, y
-			scale, visScale := 1.0, 1.0
 			for _, r := range resolutions {
-				d := r.Val(rx, ry)
-				visualDiff += d
-				distDiff += d
-				rx /= 2
-				ry /= 2
+				d := r.Val(x, y)
+				diff += d
 			}
 
-			visualDiff /= float64(len(resolutions))
-			distDiff /= float64(len(resolutions))
+			diff /= float64(len(resolutions))
 
-			_ = visScale
-			_ = scale
-			if visualDiff > 1 || visualDiff < -1 {
-				log.Fatalf("range %f", visualDiff)
+			if diff > 1 || diff < -1 {
+				log.Fatalf("range %f", diff)
 			}
-			if distDiff > 1 || distDiff < -1 {
-				log.Fatalf("range %f", distDiff)
-			}
-			// diff has range (-1,1)*2* blockSize
-			dist += math.Abs(distDiff)
+			dist += math.Abs(diff)
 
 			// -1,1
-			diffImg.SetRGBA(x, y, unitToRGBA(visualDiff))
+			diffRGB.SetRGBA(x, y, unitToRGBA(diff))
 		}
 	}
 
 	// Normalize by image size.
-	dist /= float64(maxRect.X * maxRect.Y)
+	dist /= float64(maxPoint.X * maxPoint.Y)
 
-	return diffImg, dist, nil
+	return diffRGB, dist, nil
 }
 
 func ImageCompareMAE(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
@@ -845,7 +848,7 @@ func (fr *fileResult) compareOne() error {
 	if err != nil {
 		return err
 	}
-	diff, dist, err := ImageCompareConvolve2x2(asRGBA(i1), asRGBA(i2), filepath.Base(fr.In[0]))
+	diff, dist, err := ImageCompareConvolve(asRGBA(i1), asRGBA(i2), filepath.Base(fr.In[0]))
 	if err != nil {
 		return err
 	}
