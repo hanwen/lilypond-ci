@@ -10,7 +10,6 @@ import (
 	"image/color"
 	"image/png"
 	"io"
-	"io/ioutil"
 	"log"
 	"math"
 	"os"
@@ -224,18 +223,18 @@ func convertEPSBatch(epsFiles map[string]string) error {
 		}
 	}
 
-	emptyPS, err := ioutil.TempFile("", "emptyps")
+	emptyPS, err := os.CreateTemp("", "emptyps")
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(emptyPS.Name(), []byte(`%!PS-Adobe-3.0 EPSF-3.0
+	if err := os.WriteFile(emptyPS.Name(), []byte(`%!PS-Adobe-3.0 EPSF-3.0
 %%BoundingBox: 0 0 1 1
 %%EndComments
 `), 0644); err != nil {
 		return err
 	}
 	emptyPS.Close()
-	driver, err := ioutil.TempFile("", "driverps")
+	driver, err := os.CreateTemp("", "driverps")
 	if err != nil {
 		return err
 	}
@@ -302,7 +301,7 @@ func compareDir(in1, in2 string, fileRegexp string) (*compareResult, error) {
 	in2 = filepath.Clean(in2)
 	res := map[string]*fileResult{}
 	for i, dir := range []string{in1, in2} {
-		fns, err := ioutil.ReadDir(dir)
+		fns, err := os.ReadDir(dir)
 		if err != nil {
 			return nil, err
 		}
