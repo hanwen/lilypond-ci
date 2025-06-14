@@ -98,23 +98,6 @@ func ImageCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
 
 var digitRE = regexp.MustCompile("-[0-9][0-9]*.(eps|png)$")
 
-func readDir(dir, ext string) (map[string]struct{}, error) {
-	d, err := filepath.Glob(filepath.Join(flag.Args()[0], "*."+ext))
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]struct{}, len(d))
-	for _, n := range d {
-		b := filepath.Base(n)
-		if digitRE.FindString(b) == "" {
-			continue
-		}
-		result[b] = struct{}{}
-	}
-
-	return result, nil
-}
-
 var batchGS = flag.Bool("batch_gs", true, "")
 var localDataDir = flag.Bool("local", false, "")
 var verbose = flag.Bool("verbose", false, "")
