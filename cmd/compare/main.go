@@ -96,8 +96,6 @@ func ImageCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
 	return dst, math.Sqrt(float64(accumError)) / float64(minRect.Dx()*minRect.Dy()), nil
 }
 
-var digitRE = regexp.MustCompile("-[0-9][0-9]*.(eps|png)$")
-
 var batchGS = flag.Bool("batch_gs", true, "")
 var localDataDir = flag.Bool("local", false, "")
 var verbose = flag.Bool("verbose", false, "")
@@ -294,7 +292,12 @@ func convertEPSBatch(epsFiles map[string]string) error {
 	return nil
 }
 
-func compareDir(in1, in2 string) (*compareResult, error) {
+func compareDir(in1, in2 string, fileRegexp string) (*compareResult, error) {
+	re, err := regexp.Compile(fileRegexp)
+	if err != nil {
+		return nil, err
+	}
+
 	in1 = filepath.Clean(in1)
 	in2 = filepath.Clean(in2)
 	res := map[string]*fileResult{}
@@ -306,7 +309,7 @@ func compareDir(in1, in2 string) (*compareResult, error) {
 
 		for _, fn := range fns {
 			name := fn.Name()
-			if digitRE.FindString(name) == "" {
+			if re.FindString(name) == "" {
 				continue
 			}
 
@@ -523,6 +526,8 @@ var (
 )
 
 func main() {
+	fileRegexp := flag.String("file_regexp", "-[0-9][0-9]*.(eps|png)$",
+		"compare only files matching this regexp")
 	flag.Parse()
 	if len(flag.Args()) != 3 {
 		log.Fatal("usage: compare input-dir1 input-dir2 output-dir")
@@ -538,7 +543,7 @@ func main() {
 	}
 
 	result, err := compareDir(flag.Args()[0],
-		flag.Args()[1])
+		flag.Args()[1], *fileRegexp)
 	if err != nil {
 		log.Fatalf("compareDir: %v", err)
 	}
