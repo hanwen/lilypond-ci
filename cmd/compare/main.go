@@ -44,7 +44,193 @@ func sqDiffRGBA(p, q color.RGBA) (uint64, uint8) {
 	return uint64(r*r + g*g + b*b), uint8((r + g + b) / 3)
 }
 
-func ImageCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
+type whiteBGImage struct {
+	*image.RGBA
+}
+
+var white = color.RGBA{
+	0xff, 0xff, 0xff, 0xff,
+}
+
+func (i *whiteBGImage) RGBAAt(x, y int) color.RGBA {
+	if x < i.Rect.Min.X || x >= i.Rect.Max.X {
+		return white
+	}
+	if y < i.Rect.Min.Y || y >= i.Rect.Max.Y {
+		return white
+	}
+
+	return i.RGBA.RGBAAt(x, y)
+}
+
+type signedImage struct {
+	Pix    []float64
+	Stride int
+	Rect   image.Rectangle
+}
+
+func newSignedImage(rect image.Rectangle) *signedImage {
+	return &signedImage{
+		Rect:   rect,
+		Stride: rect.Dx(),
+		Pix:    make([]float64, rect.Dx()*rect.Dy()),
+	}
+}
+
+func (p *signedImage) Val(x, y int) float64 {
+	if x < p.Rect.Min.X || x >= p.Rect.Max.X {
+		return 0.0
+	}
+	if y < p.Rect.Min.Y || y >= p.Rect.Max.Y {
+		return 0.0
+	}
+	return p.Pix[p.PixOffset(x, y)]
+}
+
+func (p *signedImage) Set(x, y int, v float64) {
+	p.Pix[p.PixOffset(x, y)] = v
+}
+
+func (p *signedImage) PixOffset(x, y int) int {
+	return (y-p.Rect.Min.Y)*p.Stride + (x - p.Rect.Min.X)
+}
+
+func (p *signedImage) AvgAbs() float64 {
+	sum := 0.0
+	for _, v := range p.Pix {
+		sum += math.Abs(v)
+	}
+	return sum / float64(len(p.Pix))
+}
+
+func (p *signedImage) dump(fn string, scale int) error {
+	r := p.Rect
+	r.Max.X *= scale
+	r.Max.Y *= scale
+
+	img := image.NewRGBA(r)
+	for y := range r.Max.Y {
+		for x := range r.Max.X {
+			v := p.Val(x/scale, y/scale)
+			img.SetRGBA(x, y, unitToRGBA(v))
+		}
+	}
+
+	outF, err := os.OpenFile(fn, os.O_WRONLY|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
+	if err := png.Encode(outF, img); err != nil {
+		return err
+	}
+	return outF.Close()
+}
+
+func rgbSum(c color.RGBA) float64 {
+	return float64(c.R) + float64(c.G) + float64(c.B)
+}
+
+func ImageCompareConvolve2x2(img1, img2 *image.RGBA, name string) (*image.RGBA, float64, error) {
+	maxRect := img1.Bounds().Union(img2.Bounds()).Max
+	blockSize := 1
+	for blockSize < max(maxRect.X, maxRect.Y) {
+		blockSize <<= 1
+	}
+	dst := newSignedImage(image.Rectangle{Max: image.Point{X: blockSize, Y: blockSize}})
+
+	w1 := whiteBGImage{img1}
+	w2 := whiteBGImage{img2}
+
+	for y := 0; y < dst.Rect.Max.Y; y++ {
+		for x := 0; x < dst.Rect.Max.X; x++ {
+			c1 := w1.RGBAAt(x, y)
+			c2 := w2.RGBAAt(x, y)
+
+			// diff has range (-1,1)
+			diff := (rgbSum(c1) - rgbSum(c2)) / (3 * 255.0)
+
+			dst.Pix[dst.PixOffset(x, y)] = diff
+		}
+	}
+
+	resolutions := []*signedImage{dst}
+	scale := 1
+	for dst.Rect.Dx() > 1 && dst.Rect.Dy() > 1 {
+		if *debug {
+			dst.dump(fmt.Sprintf("%s-%d.png", name, scale), scale)
+		}
+		src := dst
+		scale *= 2
+
+		dx := src.Rect.Max.X / 2
+		dy := src.Rect.Max.Y / 2
+		dst = newSignedImage(image.Rectangle{
+			Max: image.Point{
+				X: dx,
+				Y: dy,
+			}})
+		for y := range dy {
+			for x := range dx {
+				sx := 2 * x
+				sy := 2 * y
+				val := src.Val(sx, sy) + src.Val(sx+1, sy) + src.Val(sx, sy+1) + src.Val(sx+1, sy+1)
+				dst.Set(x, y, val/4.0)
+			}
+		}
+
+		resolutions = append(resolutions, dst)
+		src = dst
+	}
+
+	diffImg := image.NewRGBA(image.Rectangle{Max: maxRect})
+
+	if *debug {
+		for i, r := range resolutions {
+			log.Printf("%s: %d: %e", name, i, r.AvgAbs())
+		}
+	}
+
+	dist := 0.0
+	for y := range maxRect.Y {
+		for x := range maxRect.X {
+			distDiff, visualDiff := 0.0, 0.0
+
+			rx, ry := x, y
+			scale, visScale := 1.0, 1.0
+			for _, r := range resolutions {
+				d := r.Val(rx, ry)
+				visualDiff += d
+				distDiff += d
+				rx /= 2
+				ry /= 2
+			}
+
+			visualDiff /= float64(len(resolutions))
+			distDiff /= float64(len(resolutions))
+
+			_ = visScale
+			_ = scale
+			if visualDiff > 1 || visualDiff < -1 {
+				log.Fatalf("range %f", visualDiff)
+			}
+			if distDiff > 1 || distDiff < -1 {
+				log.Fatalf("range %f", distDiff)
+			}
+			// diff has range (-1,1)*2* blockSize
+			dist += math.Abs(distDiff)
+
+			// -1,1
+			diffImg.SetRGBA(x, y, unitToRGBA(visualDiff))
+		}
+	}
+
+	// Normalize by image size.
+	dist /= float64(maxRect.X * maxRect.Y)
+
+	return diffImg, dist, nil
+}
+
+func ImageCompareMAE(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
 	max := img1.Bounds().Union(img2.Bounds()).Max
 	minRect := img1.Bounds().Intersect(img2.Bounds())
 	min := minRect.Max
@@ -95,6 +281,27 @@ func ImageCompare(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
 	return dst, math.Sqrt(float64(accumError)) / float64(minRect.Dx()*minRect.Dy()), nil
 }
 
+func unitToRGBA(diff float64) (pix color.RGBA) {
+	green := color.RGBA{G: 0xff}
+	red := color.RGBA{R: 0xff}
+	if diff < 0 {
+		pix = green
+	} else {
+		pix = red
+	}
+	d := math.Abs(diff)
+	if d > 1.0 {
+		log.Printf("diff %f", d)
+		d = 1.0
+	}
+
+	// Nudge nonzero values towards 1, so they are more pronounced.
+	d = math.Pow(d, 0.5)
+	pix.A = uint8(d * 0xff)
+	return
+}
+
+var debug = flag.Bool("debug", false, "")
 var batchGS = flag.Bool("batch_gs", true, "")
 var localDataDir = flag.Bool("local", false, "")
 var verbose = flag.Bool("verbose", false, "")
@@ -326,6 +533,7 @@ func compareDir(in1, in2 string, fileRegexp string) (*compareResult, error) {
 			}
 		}
 	}
+
 	return &compareResult{
 		byName: res,
 		dirs:   [2]string{in1, in2},
@@ -398,11 +606,12 @@ func (r *compareResult) DumpTXT(w io.Writer) {
 }
 
 type fileResult struct {
-	Name string
-	Dist float64
-	In   [2]string
-	out  string
-	err  error
+	Name    string
+	Dist    float64
+	DistMAE float64
+	In      [2]string
+	out     string
+	err     error
 }
 
 var htmlTemplate *template.Template
@@ -418,7 +627,7 @@ func init() {
   <title>Image comparison</title>
   <body>
     <table>
-      <tr><th>dist</th><th>old</th><th>new</th></tr>
+      <tr><th>dist</th><th>old</th><th>new</th><th>MAE</th></tr>
       {{range .Results}}
          {{template "entry" .}}        
       {{end}}
@@ -437,7 +646,7 @@ func init() {
 	<img src="{{.Name}}.0.png">
       </div>
       <div style="opacity: 0.0">
-	<img src="{{.Name}}.0.png">
+         <img src="{{.Name}}.diff.png">
       </div>
     <div>
     <br>
@@ -458,9 +667,11 @@ func init() {
     <br>
     {{.Name}}
   </td>
+  <td>
+    {{printf "%.4f" .DistMAE}}
+  </td>
 </tr>
 `))
-
 }
 
 func (r *compareResult) DumpHTMLFile(outDir string) error {
@@ -634,11 +845,17 @@ func (fr *fileResult) compareOne() error {
 	if err != nil {
 		return err
 	}
-	diff, dist, err := ImageCompare(asRGBA(i1), asRGBA(i2))
+	diff, dist, err := ImageCompareConvolve2x2(asRGBA(i1), asRGBA(i2), filepath.Base(fr.In[0]))
 	if err != nil {
 		return err
 	}
+	_, mae, err := ImageCompareMAE(asRGBA(i1), asRGBA(i2))
+	if err != nil {
+		return err
+	}
+
 	fr.Dist = dist
+	fr.DistMAE = mae
 	if dist > 0 {
 		os.MkdirAll(filepath.Dir(fr.out), 0755)
 
