@@ -8,8 +8,8 @@ import (
 
 func TestTemplate(t *testing.T) {
 	r := compareResult{
-		[]fileResult{
-			{
+		Results: []*fileResult{
+			&fileResult{
 				Name: "myname",
 				Dist: 1.2,
 			},
