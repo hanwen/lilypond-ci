@@ -536,7 +536,7 @@ var (
 	gsJobs      = flag.Int("gs_jobs", runtime.NumCPU(), "")
 	cmpJobs     = flag.Int("cmp_jobs", runtime.NumCPU(), "")
 	imageMagick = flag.Bool("imagemagick", false, "")
-	max         = flag.Int("max", 0, "output top-N differences")
+	maxOutputs  = flag.Int("max", 0, "output top-N differences")
 )
 
 func main() {
@@ -566,7 +566,7 @@ func main() {
 		log.Fatal("comparePNG: ", err)
 	}
 
-	result.Trim(*max)
+	result.Trim(*maxOutputs)
 	result.LinkFiles(outDir)
 	result.DumpTXT(os.Stdout)
 	if err := result.DumpHTMLFile(outDir); err != nil {
