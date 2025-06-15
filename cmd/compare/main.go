@@ -437,6 +437,7 @@ func convertEPSBatch(epsFiles map[string]string) error {
 	if err != nil {
 		return err
 	}
+	defer os.Remove(emptyPS.Name())
 	if err := os.WriteFile(emptyPS.Name(), []byte(`%!PS-Adobe-3.0 EPSF-3.0
 %%BoundingBox: 0 0 1 1
 %%EndComments
@@ -448,7 +449,7 @@ func convertEPSBatch(epsFiles map[string]string) error {
 	if err != nil {
 		return err
 	}
-
+	defer os.Remove(driver.Name())
 	for inputFn, outFn := range epsFiles {
 		verbosePS := ""
 		if *verbose {
