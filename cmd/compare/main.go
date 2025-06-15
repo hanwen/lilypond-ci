@@ -463,10 +463,15 @@ func convertEPSBatch(epsFiles map[string]string) error {
 
 		_, err = fmt.Fprintf(driver, `
             %s
-            mark /OutputFile (%s)
+            << /OutputFile (%s)
             /GraphicsAlphaBits 4 /TextAlphaBits 4
             /HWResolution [101 101]
-            (png16m) finddevice putdeviceprops setdevice
+            /OutputDevice /png16m >> setpagedevice
+                /.setdefaultscreen where {
+                pop .setdefaultscreen
+                } {
+                (Warning: .setdefaultscreen not available) print
+                } ifelse
             (%s) run
 `, verbosePS, outFn, inputFn)
 		if err != nil {
