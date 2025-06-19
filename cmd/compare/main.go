@@ -186,25 +186,28 @@ func ImageCompareConvolve(img1, img2 *image.RGBA, name string) (*image.RGBA, flo
 	sumDiffImg := newIntegralImage(diffImg)
 	resolutions := []*signedImage[float64]{diffImg}
 	delta := 1
+
+	factors := []float64{1.0}
 	for delta < maxRect.Dx() && delta < maxRect.Dy() {
 		dst := newSignedImage[float64](maxRect)
 		for y := range maxPoint.Y {
 			for x := range maxPoint.X {
 				boxSum := sumDiffImg.Val(x+delta, y+delta) - sumDiffImg.Val(x+delta, y-delta-1) +
 					sumDiffImg.Val(x-delta-1, y-delta-1) - sumDiffImg.Val(x-delta-1, y+delta)
-				width := float64(2*delta + 1)
-				dst.Set(x, y, boxSum/(width*width))
+				dst.Set(x, y, boxSum)
 			}
 		}
 
 		resolutions = append(resolutions, dst)
+		width := float64(2*delta + 1)
+		factors = append(factors, 1/float64(width*width))
 		delta *= 2
 	}
 
 	diffRGB := image.NewRGBA(maxRect)
 	if *debug {
 		for i, r := range resolutions {
-			log.Printf("%s: %d: %e", name, i, r.AvgAbs())
+			log.Printf("%s: %d: %e", name, i, r.AvgAbs()*factors[i])
 			r.dump(fmt.Sprintf("%s-%d.png", name, i))
 		}
 	}
@@ -214,8 +217,8 @@ func ImageCompareConvolve(img1, img2 *image.RGBA, name string) (*image.RGBA, flo
 		for x := range maxPoint.X {
 			diff := 0.0
 
-			for _, r := range resolutions {
-				d := r.Val(x, y)
+			for i, r := range resolutions {
+				d := float64(r.Val(x, y)) * factors[i]
 				diff += d
 			}
 
@@ -234,6 +237,8 @@ func ImageCompareConvolve(img1, img2 *image.RGBA, name string) (*image.RGBA, flo
 	// Normalize by image size.
 	dist /= float64(maxPoint.X * maxPoint.Y)
 
+	// Normalize by pix range
+	//	dist *= 255.0
 	return diffRGB, dist, nil
 }
 
