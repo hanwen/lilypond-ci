@@ -311,6 +311,7 @@ var debug = flag.Bool("debug", false, "")
 var batchGS = flag.Bool("batch_gs", true, "")
 var localDataDir = flag.Bool("local", false, "")
 var verbose = flag.Bool("verbose", false, "")
+var compareMode = flag.String("algorithm", "both", "{both,mae,filter}")
 
 func convertEPSParallel(eps_files map[string]string, ncpu int) error {
 	sz := len(eps_files) / ncpu
@@ -875,25 +876,41 @@ func (fr *fileResult) compareOne() error {
 	if err != nil {
 		return err
 	}
-	diff, dist, err := ImageCompareConvolve(asRGBA(i1), asRGBA(i2), filepath.Base(fr.In[0]))
-	if err != nil {
-		return err
-	}
-	_, mae, err := ImageCompareMAE(asRGBA(i1), asRGBA(i2))
-	if err != nil {
-		return err
+
+	var diffMAE, diffFilter, diffImg *image.RGBA
+	var distMAE, distFilter float64
+
+	if *compareMode == "both" || *compareMode == "filter" {
+		diffFilter, distFilter, err = ImageCompareConvolve(asRGBA(i1), asRGBA(i2), filepath.Base(fr.In[0]))
+		if err != nil {
+			return err
+		}
 	}
 
-	fr.Dist = dist
-	fr.DistMAE = mae
-	if dist > 0 {
+	if *compareMode == "both" || *compareMode == "mae" {
+		diffMAE, distMAE, err = ImageCompareMAE(asRGBA(i1), asRGBA(i2))
+		if err != nil {
+			return err
+		}
+	}
+
+	if *compareMode == "filter" || *compareMode == "both" {
+		diffImg = diffFilter
+		fr.Dist = distFilter
+	} else {
+		diffImg = diffMAE
+		fr.Dist = distMAE
+	}
+	fr.DistMAE = distMAE
+
+	if fr.Dist > 0 {
 		os.MkdirAll(filepath.Dir(fr.out), 0755)
 
 		outF, err := os.OpenFile(fr.out, os.O_WRONLY|os.O_CREATE, 0666)
 		if err != nil {
 			return err
 		}
-		if err := png.Encode(outF, diff); err != nil {
+		if err := png.Encode(outF, diffImg); err != nil {
 			return err
 		}
 		return outF.Close()
