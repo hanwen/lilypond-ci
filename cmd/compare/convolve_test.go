@@ -9,7 +9,7 @@ func TestSumImage(t *testing.T) {
 	r := image.Rectangle{
 		Max: image.Point{2, 2},
 	}
-	in := newSignedImage(r)
+	in := newSignedImage[float64](r)
 	/*
 	   1 2
 	   3 4

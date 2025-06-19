@@ -64,25 +64,27 @@ func (i *whiteBGImage) RGBAAt(x, y int) color.RGBA {
 	return i.RGBA.RGBAAt(x, y)
 }
 
-type signedImage struct {
-	Pix    []float64
+type Num interface{ int32 | float32 | float64 }
+
+type signedImage[T Num] struct {
+	Pix    []T
 	Stride int
 	Rect   image.Rectangle
 }
 
-func newSignedImage(rect image.Rectangle) *signedImage {
-	return &signedImage{
+func newSignedImage[T Num](rect image.Rectangle) *signedImage[T] {
+	return &signedImage[T]{
 		Rect:   rect,
 		Stride: rect.Dx(),
-		Pix:    make([]float64, rect.Dx()*rect.Dy()),
+		Pix:    make([]T, rect.Dx()*rect.Dy()),
 	}
 }
 
-type sumImage struct {
-	*signedImage
+type sumImage[T Num] struct {
+	*signedImage[T]
 }
 
-func (p *sumImage) Val(x, y int) float64 {
+func (p *sumImage[T]) Val(x, y int) T {
 	if y < p.Rect.Min.Y {
 		return 0.0
 	}
@@ -99,40 +101,40 @@ func (p *sumImage) Val(x, y int) float64 {
 	return p.signedImage.Val(x, y)
 }
 
-func (p *signedImage) Val(x, y int) float64 {
+func (p *signedImage[T]) Val(x, y int) T {
 	if x < p.Rect.Min.X || x >= p.Rect.Max.X {
-		return 0.0
+		return 0
 	}
 	if y < p.Rect.Min.Y || y >= p.Rect.Max.Y {
-		return 0.0
+		return 0
 	}
 	return p.Pix[p.PixOffset(x, y)]
 }
 
-func (p *signedImage) Set(x, y int, v float64) {
+func (p *signedImage[T]) Set(x, y int, v T) {
 	p.Pix[p.PixOffset(x, y)] = v
 }
 
-func (p *signedImage) PixOffset(x, y int) int {
+func (p *signedImage[T]) PixOffset(x, y int) int {
 	return (y-p.Rect.Min.Y)*p.Stride + (x - p.Rect.Min.X)
 }
 
-func (p *signedImage) AvgAbs() float64 {
-	sum := 0.0
+func (p *signedImage[T]) AvgAbs() float64 {
+	sum := float64(0.0)
 	for _, v := range p.Pix {
-		sum += math.Abs(v)
+		sum += math.Abs(float64(v))
 	}
 	return sum / float64(len(p.Pix))
 }
 
-func (p *signedImage) dump(fn string) error {
+func (p *signedImage[T]) dump(fn string) error {
 	r := p.Rect
 
 	img := image.NewRGBA(r)
 	for y := range r.Max.Y {
 		for x := range r.Max.X {
 			v := p.Val(x, y)
-			img.SetRGBA(x, y, unitToRGBA(v))
+			img.SetRGBA(x, y, unitToRGBA(float64(v)))
 		}
 	}
 
@@ -150,8 +152,8 @@ func rgbSum(c color.RGBA) float64 {
 	return float64(c.R) + float64(c.G) + float64(c.B)
 }
 
-func newIntegralImage(in *signedImage) *sumImage {
-	s := &sumImage{newSignedImage(in.Rect)}
+func newIntegralImage[T Num](in *signedImage[T]) *sumImage[T] {
+	s := &sumImage[T]{newSignedImage[T](in.Rect)}
 	for y := range in.Rect.Max.Y {
 		for x := range in.Rect.Max.X {
 			s.Set(x, y, in.Val(x, y)+s.Val(x-1, y)+s.Val(x, y-1)-s.Val(x-1, y-1))
@@ -163,7 +165,7 @@ func newIntegralImage(in *signedImage) *sumImage {
 func ImageCompareConvolve(img1, img2 *image.RGBA, name string) (*image.RGBA, float64, error) {
 	maxPoint := img1.Bounds().Union(img2.Bounds()).Max
 	maxRect := image.Rectangle{Max: maxPoint}
-	diffImg := newSignedImage(maxRect)
+	diffImg := newSignedImage[float64](maxRect)
 
 	w1 := whiteBGImage{img1}
 	w2 := whiteBGImage{img2}
@@ -181,10 +183,10 @@ func ImageCompareConvolve(img1, img2 *image.RGBA, name string) (*image.RGBA, flo
 	}
 
 	sumDiffImg := newIntegralImage(diffImg)
-	resolutions := []*signedImage{diffImg}
+	resolutions := []*signedImage[float64]{diffImg}
 	delta := 1
 	for delta < maxRect.Dx() && delta < maxRect.Dy() {
-		dst := newSignedImage(maxRect)
+		dst := newSignedImage[float64](maxRect)
 		for y := range maxPoint.Y {
 			for x := range maxPoint.X {
 				boxSum := sumDiffImg.Val(x+delta, y+delta) - sumDiffImg.Val(x+delta, y-delta-1) +
