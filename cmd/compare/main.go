@@ -11,6 +11,7 @@ import (
 	"image/png"
 	"io"
 	"log"
+	"maps"
 	"math"
 	"os"
 	"os/exec"
@@ -274,7 +275,7 @@ func ImageCompareMAE(img1, img2 *image.RGBA) (*image.RGBA, float64, error) {
 	}
 	for y := min.Y; y < max.Y; y++ {
 		maxX := maxYImg.Bounds().Max.X
-		for x := 0; x < maxX; x++ {
+		for x := range maxX {
 			sqDiff, absDiff := sqDiffRGBA(maxXImg.RGBAAt(x, y), white)
 			accumError += int64(sqDiff)
 			if absDiff > 0 {
@@ -349,9 +350,7 @@ func convertEPSParallel(eps_files map[string]string, ncpu int) error {
 			return r.err
 		}
 
-		for k, v := range r.filemap {
-			result[k] = v
-		}
+		maps.Copy(result, r.filemap)
 	}
 	return nil
 }
@@ -380,7 +379,7 @@ func EPSBBoxEmpty(fn string) (bool, error) {
 	header = header[idx+len(marker):]
 	header = header[:strings.Index(header, "\n")]
 	var dims []int
-	for _, n := range strings.Split(header, " ") {
+	for n := range strings.SplitSeq(header, " ") {
 		dim, err := strconv.Atoi(n)
 		if err != nil {
 			return false, err
@@ -557,7 +556,7 @@ func (r *compareResult) renderPNG(outDir string) error {
 	start := time.Now()
 	epsFileCount := 0
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		fnMap := map[string]string{}
 		for _, v := range r.byName {
 			if strings.HasSuffix(v.In[i], ".eps") {
@@ -602,7 +601,7 @@ func (r *compareResult) Trim(max int) {
 
 func (r *compareResult) LinkFiles(outDir string) error {
 	for _, r := range r.Results {
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			if strings.HasPrefix(r.In[i], outDir) {
 				continue
 			}
@@ -719,7 +718,7 @@ func (r *compareResult) comparePNG(outDir string, ncpu int) error {
 	}
 	close(todo)
 	done := make(chan *fileResult, scheduled)
-	for i := 0; i < ncpu; i++ {
+	for range ncpu {
 		go func() {
 			for t := range todo {
 				t.err = t.compareOne()

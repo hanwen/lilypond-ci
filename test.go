@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -35,12 +36,7 @@ type platformSetting struct {
 }
 
 func known(ss []string, s string) bool {
-	for _, c := range ss {
-		if c == s {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ss, s)
 }
 
 type rietveldData struct {
@@ -216,7 +212,7 @@ func main() {
 	flag.Parse()
 
 	var platforms []string
-	for _, p := range strings.Split(*platform, ",") {
+	for p := range strings.SplitSeq(*platform, ",") {
 		if p == "all" {
 			platforms = allPlatforms
 			break

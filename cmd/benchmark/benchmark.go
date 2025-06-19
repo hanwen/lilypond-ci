@@ -59,7 +59,7 @@ func getCPUType() (string, error) {
 		return "", err
 	}
 
-	for _, l := range strings.Split(string(content), "\n") {
+	for l := range strings.SplitSeq(string(content), "\n") {
 		fields := strings.SplitN(l, "\t: ", 2)
 		if fields[0] == "model name" {
 			return fields[1], nil
@@ -190,7 +190,7 @@ func benchmark(v1, v2 string, count int, outDir string, args []string) allResult
 	mem := map[string][]float64{}
 	time := map[string][]float64{}
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		for _, v := range []string{v1, v2} {
 			out := fmt.Sprintf("%s/%s-%s.%d.txt", outDir, commandId(args), v, i)
 
