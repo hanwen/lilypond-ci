@@ -169,7 +169,8 @@ func newIntegralImage[T Num](in *signedImage[T]) *sumImage[T] {
 
 func assertRange[T Num](d, r T) {
 	if d > r || d < -r {
-		log.Fatalf("range %v %v", d, r)
+		_, fn, ln, _ := runtime.Caller(1)
+		log.Fatalf("%s:%d: range %v %v", fn, ln, d, r)
 	}
 }
 
@@ -192,55 +193,31 @@ func ImageCompareConvolve(img1, img2 *image.RGBA, name string) (*image.RGBA, flo
 	}
 
 	sumDiffImg := newIntegralImage(diffImg)
-	resolutions := []*signedImage[int32]{diffImg}
-	delta := 1
-
-	factors := []float64{1.0}
-	for delta < maxRect.Dx() && delta < maxRect.Dy() {
-		dst := newSignedImage[int32](maxRect)
-		width := 2*delta + 1
-		area := int32(width * width)
-
-		for y := range maxPoint.Y {
-			for x := range maxPoint.X {
-				boxSum := sumDiffImg.Val(x+delta, y+delta) - sumDiffImg.Val(x+delta, y-delta-1) +
-					sumDiffImg.Val(x-delta-1, y-delta-1) - sumDiffImg.Val(x-delta-1, y+delta)
-				dst.Set(x, y, boxSum)
-
-				assertRange(boxSum, area*768)
-			}
-		}
-
-		factors = append(factors, 1/float64(width*width))
-		resolutions = append(resolutions, dst)
-		delta *= 2
-	}
 
 	diffRGB := image.NewRGBA(maxRect)
-	if *debug {
-		for i, r := range resolutions {
-			log.Printf("%s: %d: %e", name, i, r.AvgAbs()*factors[i])
-			r.dump(fmt.Sprintf("%s-%d.png", name, i))
-		}
-	}
-
 	dist := 0.0
 	for y := range maxPoint.Y {
 		for x := range maxPoint.X {
-			diff := 0.0
+			delta := 1
 
-			for i, r := range resolutions {
-				d := float64(r.Val(x, y)) * factors[i]
-				diff += d
+			pixelDiff := float64(diffImg.Val(x, y))
+			resolutions := 1.0
+			for delta < maxRect.Dx() && delta < maxRect.Dy() {
+				width := 2*delta + 1
+				area := int32(width * width)
+
+				boxSum := sumDiffImg.Val(x+delta, y+delta) - sumDiffImg.Val(x+delta, y-delta-1) +
+					sumDiffImg.Val(x-delta-1, y-delta-1) - sumDiffImg.Val(x-delta-1, y+delta)
+				deltaDiff := float64(boxSum) / float64(area)
+				pixelDiff += deltaDiff
+				dist += math.Abs(pixelDiff) / 768.0
+				assertRange(deltaDiff, 768)
+				delta *= 2
+				resolutions += 1
 			}
-
-			diff /= float64(len(resolutions))
-
-			assertRange(diff, 768)
-			dist += math.Abs(diff)
-
-			// -1,1
-			diffRGB.SetRGBA(x, y, unitToRGBA(diff))
+			pixelDiff /= float64(resolutions)
+			assertRange(pixelDiff, 768)
+			diffRGB.Set(x, y, unitToRGBA(pixelDiff))
 		}
 	}
 
