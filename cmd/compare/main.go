@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"runtime/pprof"
 	"sort"
 	"strconv"
 	"strings"
@@ -751,7 +752,21 @@ var (
 func main() {
 	fileRegexp := flag.String("file_regexp", "-[0-9][0-9]*.(eps|png)$",
 		"compare only files matching this regexp")
+	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
 	flag.Parse()
+
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		defer f.Close() // error handling omitted for example
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
 	if len(flag.Args()) != 3 {
 		log.Fatal("usage: compare input-dir1 input-dir2 output-dir")
 	}
