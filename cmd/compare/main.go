@@ -569,7 +569,9 @@ func (r *compareResult) renderPNG(outDir string) error {
 		}
 	}
 	epsDT := time.Now().Sub(start)
-	log.Printf("Convert %d EPS files using %d cores (batch=%v) to PNG in %v (%v/file)", epsFileCount, *gsJobs, *batchGS, epsDT, epsDT/(1+time.Duration(epsFileCount)))
+	if epsFileCount > 0 {
+		log.Printf("Convert %d EPS files using %d cores (batch=%v) to PNG in %v (%v/file)", epsFileCount, *gsJobs, *batchGS, epsDT, epsDT/(time.Duration(epsFileCount)))
+	}
 	return nil
 }
 
@@ -727,7 +729,9 @@ func (r *compareResult) comparePNG(outDir string, ncpu int) error {
 	}
 
 	pngDT := time.Now().Sub(start)
-	log.Printf("compared %d PNG image pairs using %d cores (imagemagick=%v) in %v (%v / pair)", scheduled, ncpu, *imageMagick, pngDT, pngDT/time.Duration(1+scheduled))
+	if scheduled > 0 {
+		log.Printf("compared %d PNG image pairs using %d cores (imagemagick=%v) in %v (%v / pair)", scheduled, ncpu, *imageMagick, pngDT, pngDT/time.Duration(scheduled))
+	}
 
 	for _, fr := range r.byName {
 		if fr.err != nil {
